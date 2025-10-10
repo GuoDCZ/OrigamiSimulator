@@ -261,18 +261,21 @@ function initModel(globals){
         }
 
         for (var i=0;i<creaseParams.length;i++) {//allCreaseParams.length
-            var _creaseParams = creaseParams[i];//face1Ind, vert1Ind, face2Ind, ver2Ind, edgeInd, angle
-            var type = _creaseParams[5]!=0 ? 1:0;
-            //edge, face1Index, face2Index, targetTheta, type, node1, node2, index
+            var _creaseParams = creaseParams[i];//face1Ind, vert1Ind, face2Ind, ver2Ind, edgeInd, [angle, angleSeq]
+            var type = (_creaseParams[5][0] != 0) ? 1 : 0;
+
+            //edge, face1Index, face2Index, targetTheta, type, node1, node2, index, edgeInd
             creases.push(new Crease(
                 edges[_creaseParams[4]],
                 _creaseParams[0],
                 _creaseParams[2],
-                _creaseParams[5] * Math.PI / 180,  // convert back to radians for the GPU math
+                _creaseParams[5][0] * Math.PI / 180,
                 type,
                 nodes[_creaseParams[1]],
                 nodes[_creaseParams[3]],
-                creases.length));
+                i,
+                _creaseParams[4]
+            ));
         }
 
         vertices = [];
