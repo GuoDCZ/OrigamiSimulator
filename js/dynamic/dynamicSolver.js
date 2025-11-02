@@ -675,6 +675,30 @@ function initDynamicSolver(globals){
         updateCreasesMeta();
         updateCreaseVectors();
     }
+        // === GPU 狀態保存／載入快捷鍵 ===
+    document.addEventListener("keydown", function(e) {
+        const isCopy = (e.ctrlKey || e.metaKey) && e.code === "KeyC";
+        const isPaste = (e.ctrlKey || e.metaKey) && e.code === "KeyV";
+
+        if (isCopy) {
+            if (globals && globals.gpuMath) {
+                globals.gpuMath.saveTextureState("u_position");
+                globals.gpuMath.saveTextureState("u_velocity");
+                globals.gpuMath.saveTextureState("u_lastPosition");
+                console.log("[GPU] State saved!");
+            }
+        }
+
+        if (isPaste) {
+            if (globals && globals.gpuMath) {
+                globals.gpuMath.loadTextureState("u_position");
+                globals.gpuMath.loadTextureState("u_velocity");
+                globals.gpuMath.loadTextureState("u_lastPosition");
+                console.log("[GPU] State loaded!");
+            }
+        }
+    });
+
 
     return {
         syncNodesAndEdges: syncNodesAndEdges,
