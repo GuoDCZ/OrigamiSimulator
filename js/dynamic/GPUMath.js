@@ -2,7 +2,6 @@
  * Created by ghassaei on 2/24/16.
  */
 
-
 function initGPUMath(){
 
     var glBoilerplate = GLBoilerPlate();
@@ -32,18 +31,18 @@ function initGPUMath(){
        console.warn("floating point textures are not supported on your system");
     }
 
-
-
     function GPUMath(){
         this.reset();
+        this.savedTextures = {};
+        this.textureSizes = {}; // Track texture dimensions
     }
 
+    /************** Original methods **************/
     GPUMath.prototype.createProgram = function(programName, vertexShader, fragmentShader){
         var programs = this.programs;
         var program = programs[programName];
         if (program) {
             gl.useProgram(program.program);
-            // console.warn("already a program with the name " + programName);
             return;
         }
         program = glBoilerplate.createProgramFromSource(gl, vertexShader, fragmentShader);
@@ -67,9 +66,8 @@ function initGPUMath(){
         }
         texture = glBoilerplate.makeTexture(gl, width, height, gl[typeName], data);
         this.textures[name] = texture;
+        this.textureSizes[name] = {width: width, height: height}; // Store dimensions
     };
-
-
 
     GPUMath.prototype.initFrameBufferForTexture = function(textureName, shouldReplace){
         var framebuffer = this.frameBuffers[textureName];
@@ -97,7 +95,6 @@ function initGPUMath(){
 
         this.frameBuffers[textureName] = framebuffer;
     };
-
 
     GPUMath.prototype.setUniformForProgram = function(programName, name, val, type){
         if (!this.programs[programName]){
@@ -131,7 +128,6 @@ function initGPUMath(){
     };
 
     GPUMath.prototype.step = function(programName, inputTextures, outputTexture, time){
-
         gl.useProgram(this.programs[programName].program);
         if (time) this.setUniformForProgram(programName, "u_time", time, "1f");
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.frameBuffers[outputTexture]);
@@ -139,7 +135,7 @@ function initGPUMath(){
             gl.activeTexture(gl.TEXTURE0 + i);
             gl.bindTexture(gl.TEXTURE_2D, this.textures[inputTextures[i]]);
         }
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);//draw to framebuffer
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
 
     GPUMath.prototype.swapTextures = function(texture1Name, texture2Name){
@@ -175,7 +171,141 @@ function initGPUMath(){
         this.frameBuffers = {};
         this.textures = {};
         this.index = 0;
+        this.savedTextures = {};
+        this.textureSizes = {};
     };
 
-    return new GPUMath;
+    /************** GPU state save/load methods **************/
+    GPUMath.prototype.saveTextureState = function(textureName){
+        var srcTex = this.textures[textureName];
+        if (!srcTex) {
+            console.warn("No source texture found for " + textureName);
+            return;
+        }
+
+        // Get texture dimensions
+        var size = this.textureSizes[textureName];
+        if (!size) {
+            console.warn("Texture size not found for " + textureName);
+            return;
+        }
+
+        // Create saved texture if it doesn't exist
+        if (!this.savedTextures[textureName]) {
+            var savedTex = glBoilerplate.makeTexture(gl, size.width, size.height, gl.FLOAT, null);
+            this.savedTextures[textureName] = savedTex;
+
+            // Create framebuffer for saved texture
+            var fb = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, savedTex, 0);
+            this.savedTextures[textureName + "_fb"] = fb;
+            this.savedTextures[textureName + "_size"] = size;
+        }
+
+        // Use copyTexture program to copy data
+        var programObj = this.programs["copyTexture"];
+        if (!programObj) {
+            console.warn("copyTexture program not found - creating it now");
+            var vertexShader = document.getElementById("vertexShader").text;
+            var copyFragmentSrc = document.getElementById("copyTexture").text;
+            this.createProgram("copyTexture", vertexShader, copyFragmentSrc);
+            programObj = this.programs["copyTexture"];
+        }
+
+        // Set viewport to match texture size
+        var oldViewport = gl.getParameter(gl.VIEWPORT);
+        gl.viewport(0, 0, size.width, size.height);
+
+        // Bind destination framebuffer
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.savedTextures[textureName + "_fb"]);
+
+        // Use copy program
+        gl.useProgram(programObj.program);
+
+        // Bind source texture
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, srcTex);
+        
+        // Set uniforms
+        var uniformLoc = gl.getUniformLocation(programObj.program, "u_orig");
+        gl.uniform1i(uniformLoc, 0);
+        
+        var dimLoc = gl.getUniformLocation(programObj.program, "u_textureDim");
+        gl.uniform2f(dimLoc, size.width, size.height);
+
+        // Draw
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        // Restore viewport
+        gl.viewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
+        
+        console.log("[GPU] State saved for " + textureName);
+    };
+
+    GPUMath.prototype.loadTextureState = function(textureName){
+        var savedTex = this.savedTextures[textureName];
+        if (!savedTex) {
+            console.warn("No saved texture found for " + textureName);
+            return;
+        }
+
+        var dstFB = this.frameBuffers[textureName];
+        if (!dstFB) {
+            console.warn("No framebuffer found for " + textureName);
+            return;
+        }
+
+        var size = this.savedTextures[textureName + "_size"];
+        if (!size) {
+            console.warn("No size info found for " + textureName);
+            return;
+        }
+
+        var programObj = this.programs["copyTexture"];
+        if (!programObj) {
+            console.warn("copyTexture program not found");
+            return;
+        }
+
+        // Set viewport to match texture size
+        var oldViewport = gl.getParameter(gl.VIEWPORT);
+        gl.viewport(0, 0, size.width, size.height);
+
+        // Bind destination framebuffer
+        gl.bindFramebuffer(gl.FRAMEBUFFER, dstFB);
+
+        // Use copy program
+        gl.useProgram(programObj.program);
+
+        // Bind saved texture as source
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, savedTex);
+        
+        // Set uniforms
+        var uniformLoc = gl.getUniformLocation(programObj.program, "u_orig");
+        gl.uniform1i(uniformLoc, 0);
+        
+        var dimLoc = gl.getUniformLocation(programObj.program, "u_textureDim");
+        gl.uniform2f(dimLoc, size.width, size.height);
+
+        // Draw
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        // Restore viewport
+        gl.viewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
+        
+        console.log("[GPU] State loaded for " + textureName);
+    };
+
+    var gpuMath = new GPUMath();
+    
+    // Initialize copy program when ready
+    window.addEventListener("load", function(){
+        var vertexShaderSrc = document.getElementById("vertexShader").text;
+        var copyFragmentSrc = document.getElementById("copyTexture").text;
+        gpuMath.createProgram("copyTexture", vertexShaderSrc, copyFragmentSrc);
+    });    
+    
+    return gpuMath;
 }
