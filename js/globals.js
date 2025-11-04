@@ -107,7 +107,10 @@ function initGlobals(){
 
         keyframeCount: 6,
         keyframeIdx: 0,
-        foldingMode: "parallel" //or sequential
+        foldingMode: "parallel", //or sequential
+        
+        // Snapshot storage for Ctrl+C / Ctrl+V
+        savedSnapshot: null
     };
 
     function setCreasePercent(percent){

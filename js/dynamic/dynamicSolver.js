@@ -675,31 +675,73 @@ function initDynamicSolver(globals){
         updateCreasesMeta();
         updateCreaseVectors();
     }
-        // === GPU 狀態保存／載入快捷鍵 ===
+    
+    // === GPU State Save/Load with Keyframe Support ===
     document.addEventListener("keydown", function(e) {
         const isCopy = (e.ctrlKey || e.metaKey) && e.code === "KeyC";
         const isPaste = (e.ctrlKey || e.metaKey) && e.code === "KeyV";
 
         if (isCopy) {
             if (globals && globals.gpuMath) {
+                // Save GPU textures
                 globals.gpuMath.saveTextureState("u_position");
                 globals.gpuMath.saveTextureState("u_velocity");
                 globals.gpuMath.saveTextureState("u_lastPosition");
+                globals.gpuMath.saveTextureState("u_theta");
+                globals.gpuMath.saveTextureState("u_lastTheta");
+                
+                // Save keyframe index and crease percent
+                globals.savedSnapshot = {
+                    keyframeIdx: globals.keyframeIdx,
+                    creasePercent: globals.creasePercent,
+                    foldingMode: globals.foldingMode
+                };
+                
                 console.log("[GPU] State saved!");
+                console.log("  - Keyframe Index:", globals.keyframeIdx);
+                console.log("  - Crease Percent:", globals.creasePercent);
+                console.log("  - Folding Mode:", globals.foldingMode);
             }
         }
 
         if (isPaste) {
-            if (globals && globals.gpuMath) {
+            if (globals && globals.gpuMath && globals.savedSnapshot) {
+                // Restore keyframe index and crease percent
+                globals.keyframeIdx = globals.savedSnapshot.keyframeIdx;
+                globals.creasePercent = globals.savedSnapshot.creasePercent;
+                globals.foldingMode = globals.savedSnapshot.foldingMode;
+                
+                // Update UI to reflect restored values
+                globals.setCreasePercent(globals.creasePercent);
+                globals.controls.updateCreasePercent();
+                
+                // Update the keyframe display
+                var totalKeyframes = globals.keyframeCount;
+                $("#keyFrameSummary").text((globals.keyframeIdx + 1) + "/" + totalKeyframes);
+                
+                // Update crease materials with the restored target angles
+                updateCreasesMeta();
+                globals.creaseMaterialHasChanged = true;
+                
+                // Load GPU textures
                 globals.gpuMath.loadTextureState("u_position");
                 globals.gpuMath.loadTextureState("u_velocity");
                 globals.gpuMath.loadTextureState("u_lastPosition");
+                globals.gpuMath.loadTextureState("u_theta");
+                globals.gpuMath.loadTextureState("u_lastTheta");
+                
+                // Render to update display
+                render();
+                
                 console.log("[GPU] State loaded!");
+                console.log("  - Keyframe Index:", globals.keyframeIdx);
+                console.log("  - Crease Percent:", globals.creasePercent);
+                console.log("  - Folding Mode:", globals.foldingMode);
+            } else if (!globals.savedSnapshot) {
+                console.warn("[GPU] No saved snapshot found. Press Ctrl+C first to save state.");
             }
         }
     });
-
-
     return {
         syncNodesAndEdges: syncNodesAndEdges,
         updateFixed: updateFixed,
