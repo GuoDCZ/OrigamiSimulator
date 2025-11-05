@@ -185,7 +185,7 @@ function initModel(globals){
     let stepsSinceStable = 0;
     let callCount = 0;
 
-    function InstabilityTestLoop() {
+    function InstabilityTestLoop(ifPrint=false) {
         callCount = (callCount + 1) % 10;
         const instability = getInstability();
         const same6 = instability.toFixed(6) === lastInstability.toFixed(6);
@@ -195,17 +195,17 @@ function initModel(globals){
             console.log(`Instability: ${instability.toFixed(5)} [${stepsSinceStable} steps]`);
         };
         if (stabilized) {
-            if (stepsSinceStable !== 0) {
+            if (stepsSinceStable !== 0 && ifPrint) {
                 logInstability();
                 console.log("System has stabilized, stopping monitoring...");
             }
             stepsSinceStable = 0;
         } else {
-            if (stepsSinceStable === 0) {
+            if (stepsSinceStable === 0 && ifPrint) {
                 console.log("Instability detected, starting monitoring...");
                 logInstability();
             }
-            if (callCount === 0) {
+            if (callCount === 0 && ifPrint) {
                 logInstability();
             }
             stepsSinceStable++;
@@ -217,7 +217,7 @@ function initModel(globals){
     function step(numSteps) {
         getSolver().solve(numSteps);
         setGeoUpdates();
-        InstabilityTestLoop();
+        InstabilityTestLoop(false);
     }
 
     function setGeoUpdates(){

@@ -499,6 +499,83 @@ function initControls(globals){
         }
     });
 
+    setLink("#keyframeAdd", function(){
+        var creases = globals.model.getCreases();
+        var previousCount = globals.keyframeCount;
+        var position = globals.keyframeIdx + globals.creasePercent;
+        var insertIdx = Math.min(Math.floor(position) + 1, previousCount);
+        // console.log("previousCount:", previousCount, "position:", position, "insertIdx:", insertIdx);
+        var insertedAnglesRad = [];
+        for (var i = 0; i < creases.length; i++) {
+            var crease = creases[i];
+            var seq = crease.targetThetaSeq;
+            // console.log("Crease", i, "seq before insert:", seq);
+            var currentAngle = crease.getTargetTheta();
+            insertedAnglesRad.push(currentAngle);
+            seq.splice(insertIdx, 0, currentAngle);
+            // console.log("Crease", i, "seq after insert:", seq);
+        }        
+        var insertedAnglesDeg = insertedAnglesRad.map(function(angle){return angle * 180 / Math.PI;});
+        
+        globals.pattern.setRawFoldAngles(function(foldAngles){
+            for (var j = 0; j < creases.length; j++){
+                var edgeIndex = creases[j].getEdgeIndex();
+                if (!foldAngles || edgeIndex === undefined || edgeIndex < 0 || edgeIndex >= foldAngles.length) continue;
+                var seqDeg = foldAngles[edgeIndex][1];
+                // console.log("Crease ", j, "entry before insert: ", seqDeg);
+                if (!seqDeg) continue;
+                seqDeg.splice(insertIdx, 0, insertedAnglesDeg[j]);
+                // console.log("Crease ", j, "entry after insert: ", seqDeg);
+            }
+        });
+        globals.keyframeCount = previousCount + 1;
+        globals.keyframeIdx = insertIdx;
+        globals.creasePercent = 0;
+        globals.shouldChangeCreasePercent = true;
+        globals.creaseMaterialHasChanged = true;
+        updateCreasePercent();
+    });
+
+    setLink("#keyframeDelete", function(){
+        var creases = getActiveCreases();
+        if (globals.keyframeCount <= 1){
+            globals.warn("Cannot delete the last remaining keyframe.");
+            return;
+        }
+        var previousCount = globals.keyframeCount;
+        var deleteIdx = Math.min(globals.keyframeIdx, previousCount - 1);
+        for (var i = 0; i < creases.length; i++){
+            var crease = creases[i];
+            var seq = crease.targetThetaSeq;
+            if (seq.length > 0 && deleteIdx < seq.length){
+                seq.splice(deleteIdx, 1);
+                if (seq.length === 0) seq.push(0);
+            }
+        }
+        globals.pattern.setRawFoldAngles(function(foldAngles){
+            for (var j = 0; j < creases.length; j++){
+                var edgeIndex = creases[j].getEdgeIndex();
+                if (!foldAngles || edgeIndex === undefined || edgeIndex < 0 || edgeIndex >= foldAngles.length) continue;
+                var seqDeg = foldAngles[edgeIndex][1];
+                if (!seqDeg) continue;
+                if (seqDeg.length > 0 && deleteIdx < seqDeg.length){
+                    seqDeg.splice(deleteIdx, 1);
+                    if (seqDeg.length === 0) seqDeg.push(0);
+                }
+            }
+        });
+        globals.keyframeCount = previousCount - 1;
+        if (globals.keyframeCount < 1) globals.keyframeCount = 1;
+        if (globals.keyframeIdx >= globals.keyframeCount){
+            globals.keyframeIdx = globals.keyframeCount - 1;
+        }
+        if (globals.keyframeIdx < 0) globals.keyframeIdx = 0;
+        globals.creasePercent = 0;
+        globals.shouldChangeCreasePercent = true;
+        globals.creaseMaterialHasChanged = true;
+        updateCreasePercent();
+    });
+
     setInput("#currentFoldPercent", globals.creasePercent*100, function(val){
         globals.creasePercent = val/100;
         globals.shouldChangeCreasePercent = true;
