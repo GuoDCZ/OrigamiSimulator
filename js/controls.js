@@ -499,7 +499,8 @@ function initControls(globals){
         }
     });
 
-    setLink("#keyframeAdd", function(){
+    function addKeyframe(){
+        // ÐÞ¸Äcrease.targetThetaSeq
         var creases = globals.model.getCreases();
         var previousCount = globals.keyframeCount;
         var position = globals.keyframeIdx + globals.creasePercent;
@@ -517,6 +518,7 @@ function initControls(globals){
         }        
         var insertedAnglesDeg = insertedAnglesRad.map(function(angle){return angle * 180 / Math.PI;});
         
+        // ÐÞ¸ÄrawFold
         globals.pattern.setRawFoldAngles(function(foldAngles){
             for (var j = 0; j < creases.length; j++){
                 var edgeIndex = creases[j].getEdgeIndex();
@@ -528,15 +530,16 @@ function initControls(globals){
                 // console.log("Crease ", j, "entry after insert: ", seqDeg);
             }
         });
+        
         globals.keyframeCount = previousCount + 1;
         globals.keyframeIdx = insertIdx;
         globals.creasePercent = 0;
         globals.shouldChangeCreasePercent = true;
         globals.creaseMaterialHasChanged = true;
         updateCreasePercent();
-    });
+    }
 
-    setLink("#keyframeDelete", function(){
+    function deleteKeyframe(){
         var creases = getActiveCreases();
         if (globals.keyframeCount <= 1){
             globals.warn("Cannot delete the last remaining keyframe.");
@@ -574,6 +577,14 @@ function initControls(globals){
         globals.shouldChangeCreasePercent = true;
         globals.creaseMaterialHasChanged = true;
         updateCreasePercent();
+    }
+
+    setLink("#keyframeAdd", function(){
+        addKeyframe();
+    });
+
+    setLink("#keyframeDelete", function(){
+        deleteKeyframe();
     });
 
     setInput("#currentFoldPercent", globals.creasePercent*100, function(val){
