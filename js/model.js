@@ -175,7 +175,7 @@ function initModel(globals){
             let instability =
                 creases[i].getK() *
                 creases[i].getLength() *
-                (actualThetas[i] - creases[i].getTargetTheta()) ** 2;
+                (actualThetas[i] - creases[i].getTheta()) ** 2;
             instabilities.push(instability);
         }
         return instabilities.reduce((a, b) => a + b, 0);
