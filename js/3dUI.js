@@ -31,7 +31,7 @@ function init3DUI(globals) {
         if (selectedObj){
             globals.pattern.setRawFoldAngles(
                 function(foldAngles) {
-                    var seq = foldAngles[selectedObj.edgeInd][1];
+                    var seq = foldAngles[selectedObj.edge.index][1];
                     if (globals.keyframeIdx < seq.length) {
                         seq[globals.keyframeIdx] = value * Math.PI / 180;
                     }
