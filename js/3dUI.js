@@ -37,11 +37,8 @@ function init3DUI(globals) {
                     }
                 }
             );
-            var crease = globals.model.getCreases()
-            var seq = crease[selectedObj.getIndex()].targetThetaSeq;
-            if (globals.keyframeIdx < seq.length) {
-                seq[globals.keyframeIdx] = value * Math.PI / 180;
-            }
+            var creases = globals.model.getCreases()
+            creases[selectedObj.getIndex()].setTargetTheta(value * Math.PI / 180);
             globals.creaseMaterialHasChanged = true;
             $("#angleSimple").html(value.toFixed(0));
         }
@@ -91,9 +88,7 @@ function init3DUI(globals) {
             } else {
                 selectedObj = highlightedObj;
                 var crease = globals.model.getCreases()[selectedObj.getIndex()];
-                var seq = crease.getTargetThetaSeq();
-                var idx = Math.min(globals.keyframeIdx, seq.length - 1);
-                var angle = seq[idx] * 180 / Math.PI;
+                var angle = crease.getTargetTheta() * 180 / Math.PI;
                 $("#angleSimple").html(angle.toFixed(0));
                 $("#targetAngleBottom>div").slider("value", angle);
                 var stiffness = crease.getStiffness() * 100;

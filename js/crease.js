@@ -56,6 +56,22 @@ Crease.prototype.getTargetTheta = function(){
     return theta;
 };
 
+Crease.prototype.setTargetTheta = function(theta){
+    if (globals.foldingMode == "parallel"){
+        this.targetTheta = theta;
+    } else { // globals.foldingMode == "sequential"
+        const arr = this.targetThetaSeq;
+        const idx = globals.keyframeIdx;
+        if (idx >= arr.length - 1){
+            arr[arr.length - 1] = theta;
+        } else if (idx < 0){
+            arr[0] = theta;
+        } else {
+            arr[idx] = theta;
+        }
+    }
+}
+
 Crease.prototype.getSeqLength = function(){
     return this.targetThetaSeq.length;
 }
