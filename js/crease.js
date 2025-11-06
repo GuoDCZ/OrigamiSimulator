@@ -14,7 +14,7 @@ function Crease(edge, face1Index, face2Index, targetTheta, targetThetaSeq, type,
     this.face2Index = face2Index;
     this.targetTheta = targetTheta;
     this.targetThetaSeq = targetThetaSeq;
-    this.stiffness = 1.0;
+    this.stiffness = 1.0; // for debugging purposes
     this.type = type;
     this.node1 = node1;//node at vertex of face 1
     this.node2 = node2;//node at vertex of face 2

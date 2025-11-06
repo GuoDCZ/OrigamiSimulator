@@ -293,7 +293,6 @@ function initModel(globals){
         creases = [];
         creaseParams = nextCreaseParams;
         var _edges = fold.edges_vertices;
-        var _edges_assignment = fold.edges_assignment;
 
         var _vertices = [];
         for (var i=0;i<fold.vertices_coords.length;i++){
@@ -309,12 +308,12 @@ function initModel(globals){
         // _nodes[_faces[0][2]].setFixed(true);
 
         for (var i=0;i<_edges.length;i++) {
-            edges.push(new Beam([nodes[_edges[i][0]], nodes[_edges[i][1]]], _edges_assignment[i], i));
+            edges.push(new Beam([nodes[_edges[i][0]], nodes[_edges[i][1]]], fold.edges_assignment[i], i));
         }
 
         for (var i=0;i<creaseParams.length;i++) {//allCreaseParams.length
             var _creaseParams = creaseParams[i];//face1Ind, vert1Ind, face2Ind, ver2Ind, edgeInd, [angle, angleSeq]
-            var type = (_creaseParams[5][0] != 0) ? 1 : 0;
+            var type = _creaseParams[5][0]!=0 ? 1:0;
             var targetTheta = _creaseParams[5][0] * Math.PI / 180;
             var targetThetaSeq = _creaseParams[5][1].map(function(x){return x * Math.PI / 180;});
             if (targetThetaSeq.length == 0){
