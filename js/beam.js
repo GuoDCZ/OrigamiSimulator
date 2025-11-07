@@ -136,6 +136,11 @@ Beam.prototype.isBoundary = function(){
     return this.assignment == 'B';
 };
 
+Beam.prototype.getDirection = function(){
+    var pos = this.nodes.map(node => node.getPosition());
+    return pos[1].clone().sub(pos[0]).normalize();
+};
+
 
 //deallocate
 
