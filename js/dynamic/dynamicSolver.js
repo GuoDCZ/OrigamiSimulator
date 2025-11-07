@@ -511,7 +511,7 @@ function initDynamicSolver(globals){
             var crease = creases[i];
             creaseMeta[i*4] = crease.getK();
             // creaseMeta[i*4+1] = crease.getD();
-            creaseMeta[i*4+2] = crease.getTargetTheta();
+            creaseMeta[i*4+2] = crease.getTheta();
         }
         globals.gpuMath.initTextureFromData("u_creaseMeta", textureDimCreases, textureDimCreases, "FLOAT", creaseMeta, true); // creaseMeta is sent to the GPU, where it can be accessed by the shader.
     }
