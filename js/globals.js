@@ -105,9 +105,12 @@ function initGlobals(){
         isGif: false,
         shouldAnimateFoldPercent: false,
 
+        // step finder settings
+        // stepFinder: null,
         keyframeCount: 6,
         keyframeIdx: 0,
-        foldingMode: "parallel" //or sequential
+        foldingMode: "parallel", //or sequential
+        mask: null
     };
 
     function setCreasePercent(percent){
