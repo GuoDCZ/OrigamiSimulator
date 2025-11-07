@@ -64,6 +64,8 @@ $(function() {
 
     globals.curvedFolding = initCurvedFolding(globals);//for curved folding
 
+    globals.stepper = initStepper(globals);
+
     // Load demo model: waterbomb unless model specified in URL via ?model=FILE
     // where FILE is the data-url attribute of an <a class="demo">.
     var model = 'Bases/birdBase.svg';

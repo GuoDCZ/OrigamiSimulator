@@ -351,6 +351,8 @@ function initModel(globals){
         colors = new Float32Array(vertices.length*3);
         indices = new Uint16Array(faces.length*3);
 
+        const sample = new Set();
+
         for (var i=0;i<vertices.length;i++){
             positions[3*i] = vertices[i].x;
             positions[3*i+1] = vertices[i].y;

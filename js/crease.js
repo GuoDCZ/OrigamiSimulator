@@ -64,18 +64,6 @@ Crease.prototype.getTheta = function(){
     }
 };
 
-Crease.prototype.getSeqLength = function(){
-    return this.targetThetaSeq.length;
-}
-
-Crease.prototype.getStiffness = function(){
-    return this.stiffness;
-};
-
-Crease.prototype.setStiffness = function(value){
-    this.stiffness = value;
-};
-
 Crease.prototype.getK = function(){
     var length = this.getLength();
     if (this.type == 0) return globals.panelStiffness*length;
@@ -149,6 +137,20 @@ Crease.prototype.setVisibility = function(){
         vis = (this.targetTheta>0 && globals.mtnsVisible) || (this.targetTheta<0 && globals.valleysVisible);
     }
     this.edge.setVisibility(vis);
+};
+
+// seq folding
+
+Crease.prototype.getSeqLength = function(){
+    return this.targetThetaSeq.length;
+}
+
+Crease.prototype.getStiffness = function(){
+    return this.stiffness;
+};
+
+Crease.prototype.setStiffness = function(value){
+    this.stiffness = value;
 };
 
 Crease.prototype.destroy = function(){
