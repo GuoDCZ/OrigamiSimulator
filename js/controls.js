@@ -492,7 +492,7 @@ function initControls(globals){
     });
     
     setLink("#keyframeIncrement", function(){
-        if (globals.keyframeIdx < globals.keyframeCount - 1){
+        if (globals.keyframeIdx < globals.keyframeCount - 2){
             globals.keyframeIdx++;
             globals.shouldChangeCreasePercent = true;
             updateCreasePercent();
@@ -725,7 +725,7 @@ function initControls(globals){
         globals.model.reset();
     });
     setLink("#stepperBottom", function(){
-        globals.model.initStepper();
+        globals.stepper.startStepper();
     });
     setLink("#resetBottom", function(){
         globals.model.reset();

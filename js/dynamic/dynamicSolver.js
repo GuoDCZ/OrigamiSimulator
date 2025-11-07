@@ -510,7 +510,6 @@ function initDynamicSolver(globals){
         for (var i=0;i<creases.length;i++){
             var crease = creases[i];
             creaseMeta[i*4] = crease.getK();
-            creaseMeta[i*4+1] = crease.getKReal();
             // creaseMeta[i*4+1] = crease.getD();
             creaseMeta[i*4+2] = crease.getTheta();
         }

@@ -168,178 +168,10 @@ function initModel(globals){
         setGeoUpdates();
     }
 
-    let masks = [];
-
-    function stepFinderInit(i) {
-        console.log(`Initializing mask ${i + 1}`);
-        if (i >= creases.length) return stepFinderLoop(0);
-        if (Math.abs(creases[i].getTargetTheta()) < Math.PI / 100) { 
-            return stepFinderInit(i + 1);
-        }
-        globals.mask = {
-            vanishCrease: i,
-            looseCreases: [],
-            instabilities: null,
-            totalInstability: null
-        };
-        globals.creaseMaterialHasChanged = true;
-        return () => {
-            globals.mask.instabilities = getInstabilities();
-            globals.mask.totalInstability = globals.mask.instabilities.reduce((a, b) => a + b, 0);
-            if (globals.mask.totalInstability < 1e-5) {
-                console.log("Found step sequence with total instability < 1e-5");
-                applyMask();
-                globals.creaseMaterialHasChanged = true;
-                return;
-            }
-            masks.push(globals.mask);
-            return stepFinderInit(i + 1);
-        }
-    }
-
-    function stepFinderLoop(i) {
-        console.log(`Testing mask ${i + 1} of ${masks.length}`);
-        if (masks.length == 0) return;
-        if (i >= masks.length) return stepFinderLoop(0);
-        globals.mask = masks[i];
-        globals.creaseMaterialHasChanged = true;
-        if (masks[i].looseCreases.length >= creases.length - 1) {
-            globals.mask = null;
-            console.log("All masks tested.");
-            return;
-        }
-        let adjNodes = [];
-        adjNodes.push(...creases[globals.mask.vanishCrease].edge.nodes);
-        for (let j = 0; j < globals.mask.looseCreases.length; j++){
-            let crease = creases[globals.mask.looseCreases[j]];
-            console.log("Adj nodes from loose crease " + globals.mask.looseCreases[j]);
-            adjNodes.push(...crease.edge.nodes);
-        }
-        console.log(adjNodes);
-        let adjcreases = adjNodes.map(n => n.creases.concat(n.invCreases)).flat().map(c => c.index);
-        let nextCreaseIndex = null;
-        for (let j = 0; j < adjcreases.length; j++){
-            if (globals.mask.looseCreases.includes(adjcreases[j])) continue;
-            if (globals.mask.vanishCrease === adjcreases[j]) continue;
-            nextCreaseIndex = adjcreases[j];
-            console.log("Next adjacent crease to loosen: " + nextCreaseIndex);
-            break;
-        }
-        if (nextCreaseIndex === null) {
-            console.log("Warning: No adjacent creases found to loosen");
-            globals.mask = null;
-            return;
-        }
-        let maxInstability = -1;
-        for (let j = 0; j < creases.length; j++){
-            if (!adjcreases.includes(j)) continue;
-            if (globals.mask.looseCreases.includes(j)) continue;
-            if (globals.mask.vanishCrease === j) continue;
-            if (Math.abs(creases[j].getTargetTheta()) < Math.PI / 100) continue;
-            if (globals.mask.instabilities[j] > maxInstability){
-                maxInstability = globals.mask.instabilities[j];
-                nextCreaseIndex = j;
-            }
-        }
-        console.log("Loosening crease " + nextCreaseIndex + " with instability " + maxInstability);
-        globals.mask.looseCreases.push(nextCreaseIndex);
-        return () => {
-            globals.mask.instabilities = getInstabilities();
-            globals.mask.totalInstability = globals.mask.instabilities.reduce((a, b) => a + b, 0);
-            if (globals.mask.totalInstability < 1e-5) {
-                console.log("Found step sequence with total instability < 1e-5");
-                applyMask();
-                globals.creaseMaterialHasChanged = true;
-                return;
-            }
-            return stepFinderLoop(i + 1);
-        };
-    }
-
-    function applyMask() {
-        if (!globals.mask) return;
-        console.log(`Applying mask: vanishing crease ${globals.mask.vanishCrease}:` +
-            `${creases[globals.mask.vanishCrease].getTargetTheta()})`);
-        creases[globals.mask.vanishCrease].targetTheta = 0;
-        let actualThetas = getSolver().getTheta();
-        for (let i = 0; i < globals.mask.looseCreases.length; i++){
-            let idx = globals.mask.looseCreases[i];
-            let actualTheta = actualThetas[idx];
-            if (Math.abs(actualTheta) < Math.PI / 100) actualTheta = 0;
-            if (Math.abs(actualTheta - Math.PI) < Math.PI / 100) actualTheta = Math.PI;
-            if (Math.abs(actualTheta + Math.PI) < Math.PI / 100) actualTheta = -Math.PI;
-            console.log(`  loosening crease ${idx}: ` +
-                `${creases[idx].getTargetTheta()})` + 
-                ` to ${actualTheta})`);
-            creases[idx].targetTheta = actualTheta;
-        }
-        globals.mask = null;
-    }
-
-    function getInstabilities(){
-        let actualThetas = getSolver().getTheta();
-        let instabilities = [];
-        for (let i = 0; i < creases.length; i++){
-            let instability =
-                creases[i].getK() *
-                (actualThetas[i] - creases[i].getTheta()) ** 2;
-            instabilities.push(instability);
-        }
-        return instabilities;
-    }
-
-    let lastInstability = 0;
-    let stepsSinceStable = 0;
-    let callCount = 0;
-    let stepper = null;
-
-    function initStepper(){
-        if (stepper) {
-            console.log("Stepper already initialized.");
-            return;
-        }
-        console.log("Initializing stepper...");
-        masks = [];
-        stepper = stepFinderInit(0);
-    }
-
-    function InstabilityTestLoop() {
-        callCount = (callCount + 1) % 10;
-        const instabilities = getInstabilities();
-        const instability = instabilities.reduce((a, b) => a + b, 0);
-        const same6 = instability.toFixed(6) === lastInstability.toFixed(6);
-        const same4 = instability.toFixed(4) === lastInstability.toFixed(4);
-        const stabilized = same6 || (stepsSinceStable === 0 && same4);
-        const logInstability = () => {
-            console.log(`Instability: ${instability.toFixed(5)} [${stepsSinceStable} steps]`);
-        };
-        if (stabilized) {
-            if (stepsSinceStable !== 0) {
-                logInstability();
-                console.log("System has stabilized, stopping monitoring...");
-            }
-            if (stepper) {
-                stepper = stepper();
-            }
-            stepsSinceStable = 0;
-        } else {
-            if (stepsSinceStable === 0) {
-                console.log("Instability detected, starting monitoring...");
-                logInstability();
-            }
-            if (callCount === 0) {
-                logInstability();
-            }
-            stepsSinceStable++;
-        }
-        lastInstability = instability;
-    }
-
-
-    function step(numSteps) {
+    function step(numSteps){
         getSolver().solve(numSteps);
         setGeoUpdates();
-        InstabilityTestLoop();
+        globals.stepper.solve();
     }
 
     function setGeoUpdates(){
@@ -473,8 +305,6 @@ function initModel(globals){
         colors = new Float32Array(vertices.length*3);
         indices = new Uint16Array(faces.length*3);
 
-        const sample = new Set();
-
         for (var i=0;i<vertices.length;i++){
             positions[3*i] = vertices[i].x;
             positions[3*i+1] = vertices[i].y;
@@ -595,8 +425,6 @@ function initModel(globals){
         reset: reset,
         step: step,
 
-        initStepper: initStepper,
-
         getNodes: getNodes,
         getEdges: getEdges,
         getFaces: getFaces,
@@ -606,6 +434,7 @@ function initModel(globals){
         getPositionsArray: getPositionsArray,
         getColorsArray: getColorsArray,
         getMesh: getMesh,
+        getSolver: getSolver,
 
         buildModel: buildModel,//load new model
         sync: sync,//update geometry to new model
