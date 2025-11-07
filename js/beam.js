@@ -8,9 +8,11 @@ var highlightMaterial = new THREE.MeshBasicMaterial({color: 0xff0000, opacity:0.
 
 var beamGeo = new THREE.CylinderGeometry(0.005,0.005,1,8,1,false);
 
-function Beam(nodes){
+function Beam(nodes, assignment, index){
 
     this.type = "beam";
+    this.index = index;
+    this.assignment = assignment;
 
     nodes[0].addBeam(this);
     nodes[1].addBeam(this);
@@ -53,30 +55,10 @@ Beam.prototype.getVector = function(fromNode){
     return this.vertices[1].clone().sub(this.vertices[0]);
 };
 
-Beam.prototype.getObject3D = function(){
-    return this.object3D;
-};
-
-
 // Beam.prototype.setVisibility = function(state){
 //     this.object3D.visible = state;
 // };
 
-Beam.prototype.setHighlight = function(){
-    if (!this.object3D){
-        this.object3D = new THREE.Mesh(beamGeo, beamMaterialHighlight);
-        this.object3D.visible = false;
-    }
-    this.object3D.material = highlightMaterial;
-};
-
-Beam.prototype.setTransparent = function(){
-    if (!this.object3D){
-        this.object3D = new THREE.Mesh(beamGeo, beamMaterialHighlight);
-        this.object3D.visible = false;
-    }
-    this.object3D.material = transparentMaterial;
-};
 
 
 //dynamic solve
@@ -128,7 +110,36 @@ Beam.prototype.getOtherNode = function(node){
 //     if (shouldComputeLineDistance) this.object3D.geometry.computeLineDistances();//for dashed lines
 // };
 
+// seq folding
 
+Beam.prototype.getObject3D = function(){
+    return this.object3D;
+};
+
+Beam.prototype.setHighlight = function(){
+    if (!this.object3D){
+        this.object3D = new THREE.Mesh(beamGeo, beamMaterialHighlight);
+        this.object3D.visible = false;
+    }
+    this.object3D.material = highlightMaterial;
+};
+
+Beam.prototype.setTransparent = function(){
+    if (!this.object3D){
+        this.object3D = new THREE.Mesh(beamGeo, beamMaterialHighlight);
+        this.object3D.visible = false;
+    }
+    this.object3D.material = transparentMaterial;
+};
+
+Beam.prototype.isBoundary = function(){
+    return this.assignment == 'B';
+};
+
+Beam.prototype.getDirection = function(){
+    var pos = this.nodes.map(node => node.getPosition());
+    return pos[1].clone().sub(pos[0]).normalize();
+};
 
 
 //deallocate

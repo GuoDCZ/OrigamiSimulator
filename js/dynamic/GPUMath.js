@@ -2,6 +2,7 @@
  * Created by ghassaei on 2/24/16.
  */
 
+
 function initGPUMath(){
 
     var glBoilerplate = GLBoilerPlate();
@@ -31,18 +32,20 @@ function initGPUMath(){
        console.warn("floating point textures are not supported on your system");
     }
 
+
+
     function GPUMath(){
         this.reset();
         this.savedTextures = {};
         this.textureSizes = {}; // Track texture dimensions
     }
 
-    /************** Original methods **************/
     GPUMath.prototype.createProgram = function(programName, vertexShader, fragmentShader){
         var programs = this.programs;
         var program = programs[programName];
         if (program) {
             gl.useProgram(program.program);
+            // console.warn("already a program with the name " + programName);
             return;
         }
         program = glBoilerplate.createProgramFromSource(gl, vertexShader, fragmentShader);
@@ -68,6 +71,8 @@ function initGPUMath(){
         this.textures[name] = texture;
         this.textureSizes[name] = {width: width, height: height}; // Store dimensions
     };
+
+
 
     GPUMath.prototype.initFrameBufferForTexture = function(textureName, shouldReplace){
         var framebuffer = this.frameBuffers[textureName];
@@ -95,6 +100,7 @@ function initGPUMath(){
 
         this.frameBuffers[textureName] = framebuffer;
     };
+
 
     GPUMath.prototype.setUniformForProgram = function(programName, name, val, type){
         if (!this.programs[programName]){
@@ -128,6 +134,7 @@ function initGPUMath(){
     };
 
     GPUMath.prototype.step = function(programName, inputTextures, outputTexture, time){
+
         gl.useProgram(this.programs[programName].program);
         if (time) this.setUniformForProgram(programName, "u_time", time, "1f");
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.frameBuffers[outputTexture]);
@@ -135,7 +142,7 @@ function initGPUMath(){
             gl.activeTexture(gl.TEXTURE0 + i);
             gl.bindTexture(gl.TEXTURE_2D, this.textures[inputTextures[i]]);
         }
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);//draw to framebuffer
     };
 
     GPUMath.prototype.swapTextures = function(texture1Name, texture2Name){

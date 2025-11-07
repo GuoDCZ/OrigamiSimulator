@@ -206,7 +206,14 @@ Node.prototype.getSimMass = function(){
     return 1;
 };
 
+// seq folding
 
+Node.prototype.isBoundary = function(){
+    for (var i=0;i<this.beams.length;i++){
+        if (this.beams[i].isBoundary()) return true;
+    }
+    return false;
+}
 
 
 

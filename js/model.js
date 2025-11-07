@@ -168,56 +168,10 @@ function initModel(globals){
         setGeoUpdates();
     }
 
-    function getInstability(){
-        let actualThetas = getSolver().getTheta();
-        let instabilities = [];
-        for (let i = 0; i < creases.length; i++){
-            let instability =
-                creases[i].getK() *
-                creases[i].getLength() *
-                (actualThetas[i] - creases[i].getTargetTheta()) ** 2;
-            instabilities.push(instability);
-        }
-        return instabilities.reduce((a, b) => a + b, 0);
-    }
-
-    let lastInstability = 0;
-    let stepsSinceStable = 0;
-    let callCount = 0;
-
-    function InstabilityTestLoop() {
-        callCount = (callCount + 1) % 10;
-        const instability = getInstability();
-        const same6 = instability.toFixed(6) === lastInstability.toFixed(6);
-        const same4 = instability.toFixed(4) === lastInstability.toFixed(4);
-        const stabilized = same6 || (stepsSinceStable === 0 && same4);
-        const logInstability = () => {
-            console.log(`Instability: ${instability.toFixed(5)} [${stepsSinceStable} steps]`);
-        };
-        if (stabilized) {
-            if (stepsSinceStable !== 0) {
-                logInstability();
-                console.log("System has stabilized, stopping monitoring...");
-            }
-            stepsSinceStable = 0;
-        } else {
-            if (stepsSinceStable === 0) {
-                console.log("Instability detected, starting monitoring...");
-                logInstability();
-            }
-            if (callCount === 0) {
-                logInstability();
-            }
-            stepsSinceStable++;
-        }
-        lastInstability = instability;
-    }
-
-
-    function step(numSteps) {
+    function step(numSteps){
         getSolver().solve(numSteps);
         setGeoUpdates();
-        InstabilityTestLoop();
+        globals.stepper.solve();
     }
 
     function setGeoUpdates(){
@@ -301,26 +255,26 @@ function initModel(globals){
         }
 
         for (var i=0;i<_vertices.length;i++){
-            nodes.push(new Node(_vertices[i].clone(), nodes.length));
+            nodes.push(new Node(_vertices[i].clone(), i));
         }
         // _nodes[_faces[0][0]].setFixed(true);
         // _nodes[_faces[0][1]].setFixed(true);
         // _nodes[_faces[0][2]].setFixed(true);
 
         for (var i=0;i<_edges.length;i++) {
-            edges.push(new Beam([nodes[_edges[i][0]], nodes[_edges[i][1]]]));
+            edges.push(new Beam([nodes[_edges[i][0]], nodes[_edges[i][1]]], fold.edges_assignment[i], i));
         }
 
         for (var i=0;i<creaseParams.length;i++) {//allCreaseParams.length
             var _creaseParams = creaseParams[i];//face1Ind, vert1Ind, face2Ind, ver2Ind, edgeInd, [angle, angleSeq]
-            var type = (_creaseParams[5][0] != 0) ? 1 : 0;
+            var type = _creaseParams[5][0]!=0 ? 1:0;
             var targetTheta = _creaseParams[5][0] * Math.PI / 180;
             var targetThetaSeq = _creaseParams[5][1].map(function(x){return x * Math.PI / 180;});
             if (targetThetaSeq.length == 0){
                 targetThetaSeq = [0, targetTheta];
             }
             
-            //edge, face1Index, face2Index, targetTheta, targetThetaSeq, type, node1, node2, index, edgeInd
+            //edge, face1Index, face2Index, targetTheta, targetThetaSeq, type, node1, node2, index
             creases.push(new Crease(
                 edges[_creaseParams[4]],
                 _creaseParams[0],
@@ -330,8 +284,7 @@ function initModel(globals){
                 type,
                 nodes[_creaseParams[1]],
                 nodes[_creaseParams[3]],
-                i,
-                _creaseParams[4]
+                i
             ));
         }
 
@@ -481,6 +434,7 @@ function initModel(globals){
         getPositionsArray: getPositionsArray,
         getColorsArray: getColorsArray,
         getMesh: getMesh,
+        getSolver: getSolver,
 
         buildModel: buildModel,//load new model
         sync: sync,//update geometry to new model
