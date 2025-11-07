@@ -31,7 +31,7 @@ function init3DUI(globals) {
         if (selectedObj){
             globals.pattern.setRawFoldAngles(
                 function(foldAngles) {
-                    var seq = foldAngles[selectedObj.edgeInd][1];
+                    var seq = foldAngles[selectedObj.edge.index][1];
                     if (globals.keyframeIdx < seq.length) {
                         seq[globals.keyframeIdx] = value * Math.PI / 180;
                     }
@@ -47,7 +47,7 @@ function init3DUI(globals) {
     globals.controls.setSlider("#stiffnessBottom>div", 0, 0, 100, 1, function(value){
         if (selectedObj){
             var crease = globals.model.getCreases()
-            crease[selectedObj.getIndex()].stiffness = value / 100;
+            crease[selectedObj.getIndex()].setStiffness(value / 100);
             globals.creaseMaterialHasChanged = true;
             $("#stiffnessSimple").html(value.toFixed(0));
         }
@@ -82,6 +82,10 @@ function init3DUI(globals) {
     document.addEventListener('mousedown', function(e){
         if (cursorOnPanel(e)) return;
         mouseDown = true;
+        if (highlightedObj && isNode(highlightedObj)) {
+            var combs = globals.stepper.getNodeCombinations(highlightedObj);
+            console.log("Node combinations for selected crease:", combs);
+        }
         if (highlightedObj && !isNode(highlightedObj)) {
             if (selectedObj === highlightedObj) {
                 selectedObj = null;
@@ -256,7 +260,6 @@ function init3DUI(globals) {
                 edges.forEach(([a, b]) => {
                     const point = closestPointOnSegment(faceVertices[a][1], faceVertices[b][1]);
                     const dist = point.sub(position).lengthSq();
-                    console.log(dist, minDist);
                     if (dist < minDist) {
                         minDist = dist;
                         closestEdge = [faceVertices[a][0], faceVertices[b][0]];

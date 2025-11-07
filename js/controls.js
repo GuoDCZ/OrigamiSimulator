@@ -505,9 +505,9 @@ function initControls(globals){
         updateCreasePercent();
     }, -100, 100);
 
-    var totalPercentSlider = setSlider("#totalPercent>div", (globals.creasePercent + globals.keyframeIdx) / globals.keyframeCount * 100, 0, 100, 0.1, function(val){
-        var totalPercent = val/100 * globals.keyframeCount;
-        globals.keyframeIdx = Math.floor(totalPercent);
+    var totalPercentSlider = setSlider("#totalPercent>div", (globals.creasePercent + globals.keyframeIdx) / (globals.keyframeCount - 1) * 100, 0, 100, 0.1, function(val){
+        var totalPercent = val/100 * (globals.keyframeCount - 1);
+        globals.keyframeIdx = Math.min(Math.floor(totalPercent), globals.keyframeCount - 2);
         globals.creasePercent = totalPercent - globals.keyframeIdx;
         globals.shouldChangeCreasePercent = true;
         updateCreasePercent();
@@ -534,9 +534,9 @@ function initControls(globals){
         $("#foldPercentSimple").html(val.toFixed(0));
 
         var totalPercent = globals.creasePercent + globals.keyframeIdx;
-        totalPercentSlider.slider('value', (totalPercent / globals.keyframeCount) * 100);
+        totalPercentSlider.slider('value', (totalPercent / (globals.keyframeCount - 1)) * 100);
         $("#totPercent").html((totalPercent * 100).toFixed(0));
-        $("#keyFrameSummary").html((globals.keyframeIdx + 1) + '/' + globals.keyframeCount);
+        $("#keyFrameSummary").html((globals.keyframeIdx + 1) + '/' + globals.keyframeCount - 1);
     }
     updateCreasePercent();
 
