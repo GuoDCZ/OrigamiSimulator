@@ -110,6 +110,10 @@ function initGlobals(){
         keyframeCount: 6,
         keyframeIdx: 0,
         foldingMode: "parallel", //or sequential
+        magneticForceStrength: 0.2,
+        
+        // Snapshot storage for Ctrl+C / Ctrl+V
+        savedSnapshot: null,
         mask: null
     };
 
