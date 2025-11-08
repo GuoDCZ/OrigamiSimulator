@@ -177,6 +177,7 @@
     </script>
 
     <script id="velocityCalcShader" type="x-shader/x-fragment">
+        #define TWO_PI 6.283185307179586476925286766559
         precision mediump float;
         uniform vec2 u_textureDim;
         uniform vec2 u_textureDimEdges;
@@ -184,6 +185,7 @@
         uniform vec2 u_textureDimCreases;
         uniform vec2 u_textureDimNodeCreases;
         uniform vec2 u_textureDimNodeFaces;
+        uniform float u_magneticForceStrength;
         uniform float u_dt;
         uniform float u_axialStiffness;
         uniform float u_faceStiffness;
@@ -214,6 +216,20 @@
             vec2 index = vec2(mod(index1D, u_textureDim.x)+0.5, floor(index1D/u_textureDim.x)+0.5);
             vec2 scaledIndex = index/u_textureDim;
             return texture2D(u_lastPosition, scaledIndex).xyz + texture2D(u_originalPosition, scaledIndex).xyz;
+        }
+
+        float getMagneticForce(float theta, float target){
+            float x = (theta - target) * (-10.0);
+            return x * exp( -abs(x)) * u_magneticForceStrength;
+        }
+
+        float getMagneticForceAll(float theta){
+            float force = 0.0;
+            for (int n=-2;n<=2;n++){
+                float target = float(n) * TWO_PI / 4.0;
+                force += getMagneticForce(theta, target);
+            }
+            return force;
         }
 
         void main(){
@@ -275,7 +291,18 @@
                 if (creaseGeo[0]< 0.0) continue;//crease disabled bc it has collapsed too much
 
                 float targetTheta = creaseMeta[2];
-                float angForce = creaseMeta[0]*(targetTheta-thetas[0]);// + creaseMeta[1]*thetas[1];
+                float thetaDiff = targetTheta - thetas[0];
+                if (creaseMeta[1] < 0.0){// passive crease
+                    if (thetas[0] > TWO_PI/2.0){
+                        thetaDiff = thetas[0] - TWO_PI/2.0;
+                    } else if (thetas[0] < -TWO_PI/2.0){
+                        thetaDiff = thetas[0] + TWO_PI/2.0;
+                    } else {
+                        thetaDiff = 0.0;
+                    }
+                }
+                float angForce = creaseMeta[0]*thetaDiff;// + creaseMeta[1]*thetas[1];
+                angForce += getMagneticForceAll(thetas[0]);
 
                 float nodeNum = nodeCreaseMeta[1];//1, 2, 3, 4
 
@@ -386,6 +413,7 @@
     </script>
 
     <script id="positionCalcVerletShader" type="x-shader/x-fragment">
+        #define TWO_PI 6.283185307179586476925286766559
         precision mediump float;
         uniform vec2 u_textureDim;
         uniform vec2 u_textureDimEdges;
@@ -393,6 +421,7 @@
         uniform vec2 u_textureDimCreases;
         uniform vec2 u_textureDimNodeCreases;
         uniform vec2 u_textureDimNodeFaces;
+        uniform float u_magneticForceStrength;
         uniform float u_dt;
         uniform float u_axialStiffness;
         uniform float u_faceStiffness;
@@ -423,6 +452,20 @@
             vec2 index = vec2(mod(index1D, u_textureDim.x)+0.5, floor(index1D/u_textureDim.x)+0.5);
             vec2 scaledIndex = index/u_textureDim;
             return texture2D(u_lastPosition, scaledIndex).xyz + texture2D(u_originalPosition, scaledIndex).xyz;
+        }
+
+        float getMagneticForce(float theta, float target){
+            float x = (theta - target) * (-10.0);
+            return x * exp( -abs(x)) * u_magneticForceStrength;
+        }
+
+        float getMagneticForceAll(float theta){
+            float force = 0.0;
+            for (int n=-2;n<=2;n++){
+                float target = float(n) * TWO_PI / 4.0;
+                force += getMagneticForce(theta, target);
+            }
+            return force;
         }
 
         void main(){
@@ -486,7 +529,18 @@
                 if (creaseGeo[0]< 0.0) continue;//crease disabled bc it has collapsed too much
 
                 float targetTheta = creaseMeta[2];
-                float angForce = creaseMeta[0]*(targetTheta-thetas[0]);// + creaseMeta[1]*thetas[1];
+                float thetaDiff = targetTheta - thetas[0];
+                if (creaseMeta[1] < 0.0){// passive crease
+                    if (thetas[0] > TWO_PI/2.0){
+                        thetaDiff = thetas[0] - TWO_PI/2.0;
+                    } else if (thetas[0] < -TWO_PI/2.0){
+                        thetaDiff = thetas[0] + TWO_PI/2.0;
+                    } else {
+                        thetaDiff = 0.0;
+                    }
+                }
+                float angForce = creaseMeta[0]*thetaDiff;// + creaseMeta[1]*thetas[1];
+                angForce += getMagneticForceAll(thetas[0]);
 
                 float nodeNum = nodeCreaseMeta[1];//1, 2, 3, 4
 

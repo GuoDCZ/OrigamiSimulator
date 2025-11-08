@@ -5,7 +5,7 @@
 
 function initStepper(globals){
   
-    function isSmall(num, lv=2){
+    function isSmall(num, lv=1){
         return Math.abs(num) < Math.pow(10, -lv);
     }
   
@@ -86,23 +86,28 @@ function initStepper(globals){
         return res;
     }
 
+    var nodeCombinations;
+
     function MaskQueue(){
         this.masks = [];
     }
 
     MaskQueue.prototype.enqueue = function(mask){
-        var priority = mask.passiveCreases.size - mask.visitedNodes.size;
-        var inserted = false;
+        var priority = mask.visitedNodes.size - mask.passiveCreases.size;
+        if (mask.nextNodes.size === 0) priority += 1000;
+        var potential_positions = [];
         for (let i = 0; i < this.masks.length; i++){
             var m = this.masks[i];
-            var p = m.passiveCreases.size - m.visitedNodes.size;
-            if (priority < p){
-                this.masks.splice(i, 0, mask);
-                inserted = true;
-                break;
+            var p = m.visitedNodes.size - m.passiveCreases.size;
+            if (m.nextNodes.size === 0) p += 1000;
+            if (priority > p){
+                potential_positions.push(i);
             }
         }
-        if (!inserted){
+        if (potential_positions.length > 0){
+            var rd = Math.floor(Math.random() * potential_positions.length);
+            this.masks.splice(potential_positions[rd], 0, mask);
+        } else {
             this.masks.push(mask);
         }
     }
@@ -120,6 +125,17 @@ function initStepper(globals){
     }
 
     var mq;
+
+    function isPassiveCrease(creaseIdx){
+        return globals.mask &&
+            globals.mask.passiveCreases.has(creaseIdx) &&
+            globals.mask.activeCrease !== creaseIdx;
+    }
+
+    function isActiveCrease(creaseIdx){
+        return globals.mask &&
+            globals.mask.activeCrease === creaseIdx;
+    }
 
     function stepFinderInit() {
         var creases = globals.model.getCreases();
@@ -143,68 +159,68 @@ function initStepper(globals){
     }
 
     function stepFinderLoop() {
-        var nodes = globals.model.getNodes();
+        while (true) {
+            var nodes = globals.model.getNodes();
 
-        if (mq.isEmpty()) {
-            console.log("No more masks to test.");
-            globals.mask = null;
-            return;
-        }
-        var mask = mq.dequeue();
-        if (mask.nextNodes.size === 0) {
-            return stepFinderWait(mask);
-        }
-        var nodeIdx = mask.nextNodes.values().next().value;
-        mask.nextNodes.delete(nodeIdx);
-        if (mask.visitedNodes.has(nodeIdx)) {
-            console.warn("Unexpected: node already visited.");
-        }
-        mask.visitedNodes.add(nodeIdx);
-
-        var node = nodes[nodeIdx];
-        var combs = getNodeCombinations(node);
-
-        for (let i = 0; i < combs.length; i++){
-            let comb = combs[i];
-            let cannot_apply = false;
-            for (let j = 0; j < comb.length; j++){
-                let crease = comb[j];
-                if (mask.visitedCreases.has(crease.index)
-                    && !mask.passiveCreases.has(crease.index)){
-                    cannot_apply = true;
-                    break;
-                }
+            if (mq.isEmpty()) {
+                console.log("No more masks to test.");
+                globals.mask = null;
+                return;
             }
-            if (cannot_apply) continue;
-            let newMask = {
-                activeCrease: mask.activeCrease,
-                passiveCreases: new Set(mask.passiveCreases),
-                visitedCreases: new Set(mask.visitedCreases),
-                nextNodes: new Set(mask.nextNodes),
-                visitedNodes: new Set(mask.visitedNodes),
-            };
-            for (let j = 0; j < comb.length; j++){
-                let crease = comb[j];
-                newMask.passiveCreases.add(crease.index);
-            };
-            for (let j = 0; j < node.invCreases.length; j++){
-                let crease = node.invCreases[j];
-                newMask.visitedCreases.add(crease.index);
-            };
-            for (let j = 0; j < comb.length; j++){
-                let crease = comb[j];
-                for (let k = 0; k < crease.edge.nodes.length; k++){
-                    let newNode = crease.edge.nodes[k];
-                    if (nodes[newNode.index].isBoundary()) continue;
-                    if (newNode.index === node.index) continue;
-                    if (newMask.visitedNodes.has(newNode.index)) continue;
-                    newMask.nextNodes.add(newNode.index);
-                }
+            var mask = mq.dequeue();
+            if (mask.nextNodes.size === 0) {
+                return stepFinderWait(mask);
             }
-            mq.enqueue(newMask);
-        }
+            var nodeIdx = mask.nextNodes.values().next().value;
+            mask.nextNodes.delete(nodeIdx);
+            if (mask.visitedNodes.has(nodeIdx)) {
+                console.warn("Unexpected: node already visited.");
+            }
+            mask.visitedNodes.add(nodeIdx);
 
-        return stepFinderLoop();
+            var node = nodes[nodeIdx];
+            var combs = nodeCombinations[nodeIdx];
+
+            for (let i = 0; i < combs.length; i++){
+                let comb = combs[i];
+                let cannot_apply = false;
+                for (let j = 0; j < comb.length; j++){
+                    let crease = comb[j];
+                    if (mask.visitedCreases.has(crease.index)
+                        && !mask.passiveCreases.has(crease.index)){
+                        cannot_apply = true;
+                        break;
+                    }
+                }
+                if (cannot_apply) continue;
+                let newMask = {
+                    activeCrease: mask.activeCrease,
+                    passiveCreases: new Set(mask.passiveCreases),
+                    visitedCreases: new Set(mask.visitedCreases),
+                    nextNodes: new Set(mask.nextNodes),
+                    visitedNodes: new Set(mask.visitedNodes),
+                };
+                for (let j = 0; j < comb.length; j++){
+                    let crease = comb[j];
+                    newMask.passiveCreases.add(crease.index);
+                };
+                for (let j = 0; j < node.invCreases.length; j++){
+                    let crease = node.invCreases[j];
+                    newMask.visitedCreases.add(crease.index);
+                };
+                for (let j = 0; j < comb.length; j++){
+                    let crease = comb[j];
+                    for (let k = 0; k < crease.edge.nodes.length; k++){
+                        let newNode = crease.edge.nodes[k];
+                        if (nodes[newNode.index].isBoundary()) continue;
+                        if (newNode.index === node.index) continue;
+                        if (newMask.visitedNodes.has(newNode.index)) continue;
+                        newMask.nextNodes.add(newNode.index);
+                    }
+                }
+                mq.enqueue(newMask);
+            }
+        }
     }
 
     function stepFinderWait(mask) {
@@ -217,18 +233,19 @@ function initStepper(globals){
             console.log(`  mask ${i + 1}: vanishing crease ${m.activeCrease}, ` +
                 `loosening creases [${[...m.passiveCreases].join(", ")}]`);
         }
+        globals.model.getSolver().reset();
         globals.creaseMaterialHasChanged = true;
         // Wait for the next call to InstabilityTestLoop
-        return () => {
-            globals.mask.instabilities = getInstabilities();
-            globals.mask.totalInstability = globals.mask.instabilities.reduce((a, b) => a + b, 0);
-            if (globals.mask.totalInstability < 1e-5) {
-                console.log("Found step sequence with total instability < 1e-5");
+        return (isStable) => {
+            if (isStable) {
+                console.log("Mask resulted in stable configuration.");
                 applyMask();
                 globals.creaseMaterialHasChanged = true;
                 return;
+            } else {
+                console.log("Mask resulted in instability, trying next mask...");
+                return stepFinderLoop();
             }
-            return stepFinderLoop();
         };
     }
 
@@ -260,47 +277,85 @@ function initStepper(globals){
         for (let i = 0; i < creases.length; i++){
             let instability =
                 creases[i].getK() *
-                (actualThetas[i] - creases[i].getTheta()) ** 2;
+                (isPassiveCrease(i) ? 0 : 1) *
+                ((actualThetas[i] - 
+                    (isActiveCrease(i) ? 0 : creases[i].getTheta())
+                ) ** 2);
             instabilities.push(instability);
         }
         return instabilities;
     }
 
-    let lastInstability = 0;
-    let stepsSinceStable = 0;
     let callCount = 0;
     let stepper = null;
+
+    let welfold = {
+        mean: 0,
+        var_: 100,
+        cil: 0,
+        ciu: 0,
+        stabilized: false,
+    }
 
     function solve() {
         callCount = (callCount + 1) % 10;
         const instabilities = getInstabilities();
         const instability = instabilities.reduce((a, b) => a + b, 0);
-        const same6 = instability.toFixed(6) === lastInstability.toFixed(6);
-        const same4 = instability.toFixed(4) === lastInstability.toFixed(4);
-        const stabilized = same6 || (stepsSinceStable === 0 && same4);
+        
+        const alpha = 0.2;
+
         const logInstability = () => {
-            console.log(`Instability: ${instability.toFixed(5)} [${stepsSinceStable} steps]`);
+            console.log(`Instability: ${instability.toFixed(5)} [${welfold.n} steps]`);
         };
-        if (stabilized) {
-            if (stepsSinceStable !== 0) {
+
+        if (welfold.stabilized) {
+            if (instability >= welfold.cil && instability <= welfold.ciu) {
+                return;
+            } else {
                 logInstability();
-                console.log("System has stabilized, stopping monitoring...");
-                if (stepper) {
-                    stepper = stepper();
+                console.log("System destabilized, resuming monitoring...");
+                welfold = {
+                    mean: 0,
+                    var_: 100,
+                    cil: 0,
+                    ciu: 0,
+                    stabilized: false,
                 }
             }
-            stepsSinceStable = 0;
-        } else {
-            if (stepsSinceStable === 0) {
-                console.log("Instability detected, starting monitoring...");
-                logInstability();
-            }
-            if (callCount === 0) {
-                logInstability();
-            }
-            stepsSinceStable++;
         }
-        lastInstability = instability;
+
+        const old_mean = welfold.mean;
+        welfold.mean = (1 - alpha) * welfold.mean + alpha * instability;
+        welfold.var_ = (1 - alpha) * (welfold.var_ + alpha * (instability - old_mean) ** 2);
+        const stddev = Math.sqrt(welfold.var_);
+        welfold.cil = welfold.mean - 1.96 * (stddev / Math.sqrt(1 / alpha));
+        welfold.ciu = welfold.mean + 1.96 * (stddev / Math.sqrt(1 / alpha));
+
+        const containsZero = welfold.cil <= 0 && welfold.ciu >= 0;
+
+        welfold.stabilized = welfold.var_ < 0.1;
+
+        if (stepper && !containsZero) {
+            stepper = stepper(false);
+                welfold = {
+                    mean: 0,
+                    var_: 1e6,
+                    cil: 0,
+                    ciu: 0,
+                    stabilized: false,
+                }
+        } else if (stepper && containsZero && welfold.stabilized) {
+            stepper = stepper(true);
+        };
+
+        if (welfold.stabilized) {
+            logInstability();
+            console.log("System has stabilized, stopping monitoring...");
+        };
+
+        if (callCount === 0) {
+            logInstability();
+        }
     }
 
     function startStepper(){
@@ -310,11 +365,14 @@ function initStepper(globals){
         }
         console.log("Initializing stepper...");
         mq = new MaskQueue();
+        nodeCombinations = globals.model.getNodes().map(getNodeCombinations);
         stepper = stepFinderInit(0);
     }
 
     return {
         solve: solve,
-        startStepper: startStepper
+        startStepper: startStepper,
+        isActiveCrease: isActiveCrease,
+        isPassiveCrease: isPassiveCrease,
     }
 }
