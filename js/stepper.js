@@ -185,6 +185,8 @@ function initStepper(globals){
             if (mq.isEmpty()) {
                 console.log("No more masks to test.");
                 globals.mask = null;
+                $("#stepper").text("Step");
+                $("#stepperBottom").removeClass("active");
                 return;
             }
             var mask = mq.dequeue();
@@ -270,6 +272,8 @@ function initStepper(globals){
                 console.log("Mask resulted in stable configuration.");
                 applyMask();
                 globals.creaseMaterialHasChanged = true;
+                $("#stepper").text("Step");
+                $("#stepperBottom").removeClass("active");
                 return;
             } else {
                 console.log("Mask resulted in instability, trying next mask...");
@@ -387,6 +391,8 @@ function initStepper(globals){
             console.log("Stepper already initialized.");
             return;
         }
+        $("#stepper").text("Running");
+        $("#stepperBottom").addClass("active");
         console.log("Initializing stepper...");
         mq = new MaskQueue();
         cont = stepFinderInit();
