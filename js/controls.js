@@ -484,107 +484,33 @@ function initControls(globals){
     });
 
     setLink("#keyframeDecrement", function(){
-        if (globals.keyframeIdx > 0){
+        if (globals.foldingMode == "sequential" &&
+            globals.keyframeIdx > 0){
             globals.keyframeIdx--;
-            globals.shouldChangeCreasePercent = true;
-            updateCreasePercent();
+        } else {
+            globals.creasePercent = 0;
         }
+        globals.shouldChangeCreasePercent = true;
+        updateCreasePercent();
     });
     
     setLink("#keyframeIncrement", function(){
-        if (globals.keyframeIdx < globals.keyframeCount - 2){
+        if (globals.foldingMode == "sequential" &&
+            globals.keyframeIdx < globals.keyframeCount - 2){
             globals.keyframeIdx++;
-            globals.shouldChangeCreasePercent = true;
-            updateCreasePercent();
+        } else {
+            globals.creasePercent = 1;
         }
+        globals.shouldChangeCreasePercent = true;
+        updateCreasePercent();
     });
 
-    function addKeyframe(){
-        // �޸�crease.targetThetaSeq
-        var creases = globals.model.getCreases();
-        var previousCount = globals.keyframeCount;
-        var position = globals.keyframeIdx + globals.creasePercent;
-        var insertIdx = Math.min(Math.floor(position) + 1, previousCount);
-        // console.log("previousCount:", previousCount, "position:", position, "insertIdx:", insertIdx);
-        var insertedAnglesRad = [];
-        for (var i = 0; i < creases.length; i++) {
-            var crease = creases[i];
-            var seq = crease.targetThetaSeq;
-            // console.log("Crease", i, "seq before insert:", seq);
-            var currentAngle = crease.getTargetTheta();
-            insertedAnglesRad.push(currentAngle);
-            seq.splice(insertIdx, 0, currentAngle);
-            // console.log("Crease", i, "seq after insert:", seq);
-        }        
-        var insertedAnglesDeg = insertedAnglesRad.map(function(angle){return angle * 180 / Math.PI;});
-        
-        // �޸�rawFold
-        globals.pattern.setRawFoldAngles(function(foldAngles){
-            for (var j = 0; j < creases.length; j++){
-                var edgeIndex = creases[j].edge.index;
-                if (!foldAngles || edgeIndex === undefined || edgeIndex < 0 || edgeIndex >= foldAngles.length) continue;
-                var seqDeg = foldAngles[edgeIndex][1];
-                // console.log("Crease ", j, "entry before insert: ", seqDeg);
-                if (!seqDeg) continue;
-                seqDeg.splice(insertIdx, 0, insertedAnglesDeg[j]);
-                // console.log("Crease ", j, "entry after insert: ", seqDeg);
-            }
-        });
-        
-        globals.keyframeCount = previousCount + 1;
-        globals.keyframeIdx = insertIdx;
-        globals.creasePercent = 0;
-        globals.shouldChangeCreasePercent = true;
-        globals.creaseMaterialHasChanged = true;
-        updateCreasePercent();
-    }
-
-    function deleteKeyframe(){
-        var creases = getActiveCreases();
-        if (globals.keyframeCount <= 1){
-            globals.warn("Cannot delete the last remaining keyframe.");
-            return;
-        }
-        var previousCount = globals.keyframeCount;
-        var deleteIdx = Math.min(globals.keyframeIdx, previousCount - 1);
-        for (var i = 0; i < creases.length; i++){
-            var crease = creases[i];
-            var seq = crease.targetThetaSeq;
-            if (seq.length > 0 && deleteIdx < seq.length){
-                seq.splice(deleteIdx, 1);
-                if (seq.length === 0) seq.push(0);
-            }
-        }
-        globals.pattern.setRawFoldAngles(function(foldAngles){
-            for (var j = 0; j < creases.length; j++){
-                var edgeIndex = creases[j].edge.index;
-                if (!foldAngles || edgeIndex === undefined || edgeIndex < 0 || edgeIndex >= foldAngles.length) continue;
-                var seqDeg = foldAngles[edgeIndex][1];
-                if (!seqDeg) continue;
-                if (seqDeg.length > 0 && deleteIdx < seqDeg.length){
-                    seqDeg.splice(deleteIdx, 1);
-                    if (seqDeg.length === 0) seqDeg.push(0);
-                }
-            }
-        });
-        globals.keyframeCount = previousCount - 1;
-        if (globals.keyframeCount < 1) globals.keyframeCount = 1;
-        if (globals.keyframeIdx >= globals.keyframeCount){
-            globals.keyframeIdx = globals.keyframeCount - 1;
-        }
-        if (globals.keyframeIdx < 0) globals.keyframeIdx = 0;
-        globals.creasePercent = 0;
-        globals.shouldChangeCreasePercent = true;
-        globals.creaseMaterialHasChanged = true;
-        updateCreasePercent();
-    }
-
     setLink("#keyframeAdd", function(){
-        addKeyframe();
+        globals.model.addKeyframe(globals.keyframeIdx);
     });
 
     setLink("#keyframeDelete", function(){
-        deleteKeyframe();
+        globals.model.deleteKeyframe(globals.keyframeIdx);
     });
 
     setInput("#currentFoldPercent", globals.creasePercent*100, function(val){
@@ -593,9 +519,13 @@ function initControls(globals){
         updateCreasePercent();
     }, -100, 100);
 
-    var totalPercentSlider = setSlider("#totalPercent>div", (globals.creasePercent + globals.keyframeIdx) / (globals.keyframeCount - 1) * 100, 0, 100, 0.1, function(val){
+    var totalPercentSlider = setSlider("#totalPercent>div", 
+        (globals.creasePercent + globals.keyframeIdx) / (globals.keyframeCount - 1) * 100, 0, 100, 0.1, function(val){
         var totalPercent = val/100 * (globals.keyframeCount - 1);
-        globals.keyframeIdx = Math.min(Math.floor(totalPercent), globals.keyframeCount - 2);
+        globals.keyframeIdx = Math.floor(totalPercent);
+        while (globals.keyframeIdx >= globals.keyframeCount - 1) {
+            globals.keyframeIdx--;
+        }
         globals.creasePercent = totalPercent - globals.keyframeIdx;
         globals.shouldChangeCreasePercent = true;
         updateCreasePercent();
@@ -621,10 +551,15 @@ function initControls(globals){
         $('#creasePercent>input').val(val.toFixed(0));
         $("#foldPercentSimple").html(val.toFixed(0));
 
-        var totalPercent = globals.creasePercent + globals.keyframeIdx;
-        totalPercentSlider.slider('value', (totalPercent / (globals.keyframeCount - 1)) * 100);
-        $("#totPercent").html((totalPercent * 100).toFixed(0));
-        $("#keyFrameSummary").html((globals.keyframeIdx + 1) + '/' + globals.keyframeCount - 1);
+        if (globals.foldingMode == "parallel") {
+            var effectiveIdx = Math.floor(globals.creasePercent);
+            $("#keyFrameSummary").text('' + (effectiveIdx + 1) + '/2');
+        } else { // sequential
+            var totalPercent = globals.creasePercent + globals.keyframeIdx;
+            totalPercentSlider.slider('value', (totalPercent / (globals.keyframeCount - 1)) * 100);
+            var effectiveIdx = Math.floor(totalPercent);
+            $("#keyFrameSummary").text('' + (effectiveIdx + 1) + '/' + globals.keyframeCount);
+        }
     }
     updateCreasePercent();
 
@@ -711,19 +646,30 @@ function initControls(globals){
         setColorMode("axialStrain");
     });
 
-    setLink("#parallelToggle", function(){
-        globals.foldingMode = "parallel";
-        $("#parallelToggle>div").addClass("active");
-        $("#sequentialToggle>div").removeClass("active");
+    function updateFoldingMode(val){
+        if (val == "parallel") {
+            $("#parallelToggle>div").addClass("active");
+            $("#sequentialToggle>div").removeClass("active");
+            $("#totalPercent").hide();
+        }
+        else { // sequential
+            $("#parallelToggle>div").removeClass("active");
+            $("#sequentialToggle>div").addClass("active");
+            $("#totalPercent").show();
+            if (globals.foldingMode == "parallel") {
+                // adjust creasePercent to account for change in mode
+                globals.keyframeIdx = globals.keyframeCount - 2;
+            }
+        }
+        globals.foldingMode = val;
         globals.shouldChangeCreasePercent = true;
-        $("#totalPercent").hide();
+        updateCreasePercent();
+    }
+    setLink("#parallelToggle", function(){
+        updateFoldingMode("parallel");
     });
     setLink("#sequentialToggle", function(){
-        globals.foldingMode = "sequential";
-        $("#sequentialToggle>div").addClass("active");
-        $("#parallelToggle>div").removeClass("active");
-        globals.shouldChangeCreasePercent = true;
-        $("#totalPercent").show();
+        updateFoldingMode("sequential");
     });
 
     setHexInput("#color1", globals.color1, function(val){
@@ -1076,6 +1022,7 @@ function initControls(globals){
     return {
         setDeltaT: setDeltaT,
         updateCreasePercent: updateCreasePercent,
+        updateFoldingMode: updateFoldingMode,
         setSliderInputVal: setSliderInputVal,
         setSlider: setSlider,
     }

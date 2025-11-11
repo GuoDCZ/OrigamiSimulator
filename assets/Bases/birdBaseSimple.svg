@@ -94,16 +94,6 @@
 </line>
 
 <!-- e lines -->
-<line stroke="#FFFF00" id="e1" x1="0" y1="0" x2="-500" y2="-500">
-<animate attributeName="stroke"
-    values="#FF0; #FF0;#FF0;#FF0; #FF0;#FF0;#FF0; #FF0"
-    dur="8s" fill="freeze"/>
-</line>
-<line stroke="#FFFF00" id="e2" x1="0" y1="0" x2="500" y2="500">
-<animate attributeName="stroke"
-    values="#FF0; #FF0;#FF0;#FF0; #FF0;#FF0;#FF0; #FF0"
-    dur="8s" fill="freeze"/>
-</line>
 <line stroke="#0000FF" id="e3" x1="0" y1="0" x2="500" y2="-500">
 <animate attributeName="stroke"
     values="#FF0; #F00;#F00;#00F; #00F;#00F;#00F; #00F"

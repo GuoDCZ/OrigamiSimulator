@@ -692,7 +692,6 @@ function initPattern(globals){
 
         //save pre-triangulated faces for later saveFOLD()
         rawFold = JSON.parse(JSON.stringify(fold));
-        console.log("Raw fold data:", rawFold);
 
         var cuts = FOLD.filter.cutEdges(fold);
         if (cuts.length>0) {

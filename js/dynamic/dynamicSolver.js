@@ -255,6 +255,36 @@ function initDynamicSolver(globals){
         }
     }
 
+    function getCreaseEnergy(){
+        let thetas = getTheta();
+        let energy = 0;
+        for (let i = 0; i < creases.length; i++){
+            let dTheta = thetas[i] - (globals.stepper.isActiveCrease(i) ? 0 : creases[i].getTheta());
+            let k = (globals.stepper.isPassiveCrease(i) ? 0 : creases[i].getK());
+            if (!theta[i] && theta[i] !== 0) console.log("bad crease theta");
+            if (!creases[i].getTheta() && creases[i].getTheta() !== 0) console.log("bad crease target theta");
+            if (!k && k !== 0) console.log("bad crease k");
+            if (!dTheta && dTheta !== 0) console.log("bad crease dTheta");
+            energy += 0.5 * k * dTheta * dTheta;
+        }
+        return energy;
+    }
+
+    function getAxialEnergy(){
+        let energy = 0;
+        for (let i = 0; i < edges.length; i++){
+            let edge = edges[i];
+            let dLength = edge.getLength() - edge.getOriginalLength();
+            let k = edge.getK();
+            energy += 0.5 * k * dLength * dLength;
+        }
+        return energy;
+    }
+
+    function getTotalEnergy(){
+        return getCreaseEnergy() + getAxialEnergy(); // + getFaceEnergy();
+    }
+
     function setSolveParams(){
         var dt = calcDt();
         $("#deltaT").html(dt);
@@ -754,6 +784,7 @@ function initDynamicSolver(globals){
         render: render,
         reset: reset,
         getTheta: getTheta,
+        getTotalEnergy: getTotalEnergy,
         saveState: saveState,
         loadState: loadState
     }
