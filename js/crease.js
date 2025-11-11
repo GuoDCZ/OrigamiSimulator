@@ -41,9 +41,12 @@ Crease.prototype.getNormal2Index = function(){
 
 Crease.prototype.getTargetTheta = function(){
     if (globals.foldingMode == "parallel"){
-        return this.targetTheta;
+        return this.targetTheta ?? 0;
     } else { // globals.foldingMode == "sequential"
-        return this.targetThetaSeq[globals.keyframeIdx + 1];
+        if (globals.keyframeIdx >= this.targetThetaSeq.length - 1){
+            return this.targetThetaSeq[this.targetThetaSeq.length - 1] ?? 0;
+        }
+        return this.targetThetaSeq[globals.keyframeIdx + 1] ?? 0;
     }
 };
 
@@ -57,10 +60,13 @@ Crease.prototype.setTargetTheta = function(theta){
 
 Crease.prototype.getTheta = function(){
     if (globals.foldingMode == "parallel"){
-        return this.targetTheta * globals.creasePercent;
-    } else { // globals.foldingMode == "sequential"
-        return this.targetThetaSeq[globals.keyframeIdx] * (1 - globals.creasePercent) +
-                this.targetThetaSeq[globals.keyframeIdx + 1] * globals.creasePercent;
+        return (this.targetTheta ?? 0) * globals.creasePercent;
+    } else { // globals.foldingMode == "sequential")
+        if (globals.keyframeIdx >= this.targetThetaSeq.length - 1){
+            return this.targetThetaSeq[this.targetThetaSeq.length - 1] ?? 0;
+        }
+        return ((this.targetThetaSeq[globals.keyframeIdx] ?? 0) * (1 - globals.creasePercent) +
+                (this.targetThetaSeq[globals.keyframeIdx + 1] ?? 0) * globals.creasePercent);
     }
 };
 

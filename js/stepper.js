@@ -52,10 +52,14 @@ function initStepper(globals){
     }
 
     function getNodeCombinations(node){
+        if (node.isBoundary()) return [];
         var effectiveCreases = node.invCreases.filter(isFlatFoldingCrease);
         if (effectiveCreases.length % 2 === 1) console.warn("Odd number of effective creases at node ", node.index);
         if (effectiveCreases.length === 0) console.warn("No effective creases at node ", node.index);
-        if (effectiveCreases.length === 2) return [effectiveCreases];
+        if (effectiveCreases.length === 2) {
+            console.log(`Node ${node.index} combinations: `, [effectiveCreases]);
+            return [effectiveCreases];
+        }
         // effectiveCreases.length >= 4
         var homoPairs = [];
         var res = [];
@@ -93,21 +97,20 @@ function initStepper(globals){
     }
 
     MaskQueue.prototype.enqueue = function(mask){
-        var priority = mask.visitedNodes.size - mask.passiveCreases.size;
-        if (mask.nextNodes.size === 0) priority += 1000;
-        var potential_positions = [];
+        var priority = -mask.complexity;
+        // if (mask.nextNodes.size === 0) priority += 1000;
+        var found = false;
         for (let i = 0; i < this.masks.length; i++){
             var m = this.masks[i];
-            var p = m.visitedNodes.size - m.passiveCreases.size;
-            if (m.nextNodes.size === 0) p += 1000;
+            var p = -m.complexity;
+            // if (m.nextNodes.size === 0) p += 1000;
             if (priority > p){
-                potential_positions.push(i);
+                this.masks.splice(i, 0, mask);
+                found = true;
+                break;
             }
         }
-        if (potential_positions.length > 0){
-            var rd = Math.floor(Math.random() * potential_positions.length);
-            this.masks.splice(potential_positions[rd], 0, mask);
-        } else {
+        if (!found){
             this.masks.push(mask);
         }
     }
@@ -129,29 +132,46 @@ function initStepper(globals){
     function isPassiveCrease(creaseIdx){
         return globals.mask &&
             globals.mask.passiveCreases.has(creaseIdx) &&
-            globals.mask.activeCrease !== creaseIdx;
+            !globals.mask.activeCreases.has(creaseIdx);
     }
 
     function isActiveCrease(creaseIdx){
         return globals.mask &&
-            globals.mask.activeCrease === creaseIdx;
+            globals.mask.activeCreases.has(creaseIdx);
     }
 
     function stepFinderInit() {
+        globals.controls.updateFoldingMode("sequential");
+        globals.creasePercent = 1.0;
+        globals.controls.updateCreasePercent();
+        if (globals.keyframeIdx > 0) {
+            console.warn("Stepper started at non-zero keyframe index. Discarding previous keyframes.");
+            while (globals.keyframeIdx > 0) {
+                globals.model.deleteKeyframe(1);
+            }
+        }
+        globals.model.addKeyframe(globals.keyframeIdx + 1);
+        statManager.start();
+        return stepFinderInit2;
+        // return null;
+    }
+
+    function stepFinderInit2() {
+        nodeCombinations = globals.model.getNodes().map(getNodeCombinations);
         var creases = globals.model.getCreases();
         var effectiveCreases = creases.filter(isFlatFoldingCrease);
         console.log(`Effective creases: `, effectiveCreases);
         for (let i = 0; i < effectiveCreases.length; i++){
             var crease = effectiveCreases[i];
-            console.log(`Initializing mask ${i + 1}`);
             var mask = {
-                activeCrease: crease.index,
+                activeCreases: new Set([crease.index]),
                 passiveCreases: new Set([crease.index]),
                 visitedCreases: new Set([crease.index]),
                 nextNodes: new Set(crease.edge.nodes
                     .filter(node => !node.isBoundary())
                     .map(n => n.index)),
                 visitedNodes: new Set(),
+                complexity: 1,
             };
             mq.enqueue(mask);
         }
@@ -165,6 +185,8 @@ function initStepper(globals){
             if (mq.isEmpty()) {
                 console.log("No more masks to test.");
                 globals.mask = null;
+                $("#stepper").text("Step");
+                $("#stepperBottom").removeClass("active");
                 return;
             }
             var mask = mq.dequeue();
@@ -194,16 +216,22 @@ function initStepper(globals){
                 }
                 if (cannot_apply) continue;
                 let newMask = {
-                    activeCrease: mask.activeCrease,
+                    activeCreases: new Set(mask.activeCreases),
                     passiveCreases: new Set(mask.passiveCreases),
                     visitedCreases: new Set(mask.visitedCreases),
                     nextNodes: new Set(mask.nextNodes),
                     visitedNodes: new Set(mask.visitedNodes),
+                    complexity: mask.complexity,
                 };
                 for (let j = 0; j < comb.length; j++){
                     let crease = comb[j];
                     newMask.passiveCreases.add(crease.index);
                 };
+                if (comb.length === 2){
+                    if (isActiveCrease(comb[0].index)) newMask.activeCreases.add(comb[1].index);
+                    else if (isActiveCrease(comb[1].index)) newMask.activeCreases.add(comb[0].index);
+                }
+                newMask.complexity += newMask.passiveCreases.size - mask.passiveCreases.size - 1;
                 for (let j = 0; j < node.invCreases.length; j++){
                     let crease = node.invCreases[j];
                     newMask.visitedCreases.add(crease.index);
@@ -225,22 +253,27 @@ function initStepper(globals){
 
     function stepFinderWait(mask) {
         globals.mask = mask;
-        console.log(`Testing mask: vanishing crease ${mask.activeCrease}, ` +
-            `loosening creases [${[...mask.passiveCreases].join(", ")}]`);
+        console.log(`Testing mask: vanishing crease ${[...mask.activeCreases].join(", ")}, ` +
+            `loosening creases [${[...mask.passiveCreases].join(", ")}], ` +
+            `complexity ${mask.complexity}`);
         console.log(`Other 10 candidate masks in queue: `);
         for (let i = 0; i < Math.min(10, mq.masks.length); i++){
             let m = mq.masks[i];
-            console.log(`  mask ${i + 1}: vanishing crease ${m.activeCrease}, ` +
-                `loosening creases [${[...m.passiveCreases].join(", ")}]`);
+            console.log(`  mask ${i + 1}: vanishing crease ${[...m.activeCreases].join(", ")}, ` +
+                `loosening creases [${[...m.passiveCreases].join(", ")}], ` +
+                `complexity ${m.complexity}`);
         }
         globals.model.getSolver().reset();
         globals.creaseMaterialHasChanged = true;
+        statManager.start();
         // Wait for the next call to InstabilityTestLoop
         return (isStable) => {
             if (isStable) {
                 console.log("Mask resulted in stable configuration.");
                 applyMask();
                 globals.creaseMaterialHasChanged = true;
+                $("#stepper").text("Step");
+                $("#stepperBottom").removeClass("active");
                 return;
             } else {
                 console.log("Mask resulted in instability, trying next mask...");
@@ -252,10 +285,12 @@ function initStepper(globals){
     function applyMask() {
         var creases = globals.model.getCreases();
         if (!globals.mask) return;
-        console.log(`Applying mask: vanishing crease ${globals.mask.activeCrease}:` +
-            `${creases[globals.mask.activeCrease].getTheta()})`);
+        console.log(`Applying mask: vanishing crease ${[...globals.mask.activeCreases].join(", ")}:` +
+            `${[...globals.mask.activeCreases].map(idx => creases[idx].getTheta()).join(", ")})`);
         console.log(globals.mask);
-        creases[globals.mask.activeCrease].setTargetTheta(0);
+        for (const idx of globals.mask.activeCreases){
+            creases[idx].setTargetTheta(0);
+        }
         let actualThetas = globals.model.getSolver().getTheta();
         for (const idx of globals.mask.passiveCreases){
             let actualTheta = actualThetas[idx];
@@ -270,107 +305,101 @@ function initStepper(globals){
         globals.mask = null;
     }
 
-    function getInstabilities(){
-        var creases = globals.model.getCreases();
-        let actualThetas = globals.model.getSolver().getTheta();
-        let instabilities = [];
-        for (let i = 0; i < creases.length; i++){
-            let instability =
-                creases[i].getK() *
-                (isPassiveCrease(i) ? 0 : 1) *
-                ((actualThetas[i] - 
-                    (isActiveCrease(i) ? 0 : creases[i].getTheta())
-                ) ** 2);
-            instabilities.push(instability);
-        }
-        return instabilities;
-    }
 
-    let callCount = 0;
-    let stepper = null;
+    let cont = null;
 
-    let welfold = {
-        mean: 0,
-        var_: 100,
-        cil: 0,
-        ciu: 0,
-        stabilized: false,
-    }
-
-    function solve() {
-        callCount = (callCount + 1) % 10;
-        const instabilities = getInstabilities();
-        const instability = instabilities.reduce((a, b) => a + b, 0);
-        
+    function initStatManager() {
         const alpha = 0.2;
+        const eps = 0.02;
+        const stableLimit = 5;
+        var mean = null;
+        var var_ = 100;
+        var stableCount = 0;
+        var n = 0;
+        var running = false;
 
-        const logInstability = () => {
-            console.log(`Instability: ${instability.toFixed(5)} [${welfold.n} steps]`);
-        };
+        function start() {
+            mean = 0;
+            var_ = 100;
+            stableCount = 0;
+            n = 0;
+            running = true;
+        }
 
-        if (welfold.stabilized) {
-            if (instability >= welfold.cil && instability <= welfold.ciu) {
-                return;
-            } else {
+        function ping(val, callback) {
+            if (!running) return;
+            n++;
+
+            const diff = val - mean;
+            mean += alpha * diff;
+            var_ = (1 - alpha) * (var_ + alpha * diff * diff);
+
+            const std = Math.sqrt(var_);
+            const cil = mean - 1.96 * std;
+            const ciu = mean + 1.96 * std;
+
+            function logInstability() {
+                console.log(`Energy: ${val.toFixed(5)}; [${cil.toFixed(5)}, ${ciu.toFixed(5)}]; `+
+                            `Var: ${var_.toFixed(5)}; Mean: ${mean.toFixed(5)}`);
+            };
+
+            const containZero = (cil <= 0 && ciu >= 0);
+
+            // === Reject ===
+            if (!containZero) {
+                running = false;
                 logInstability();
-                console.log("System destabilized, resuming monitoring...");
-                welfold = {
-                    mean: 0,
-                    var_: 100,
-                    cil: 0,
-                    ciu: 0,
-                    stabilized: false,
+                callback(false);
+            }
+
+            // === Accept ===
+            if (Math.abs(mean) < eps && containZero) {
+                stableCount++;
+                if (stableCount >= stableLimit) {
+                    running = false;
+                    logInstability();
+                    callback(true);
                 }
+            } else {
+                stableCount = 0;
+            }
+
+            if (n % 10 === 1) {
+                logInstability();
             }
         }
 
-        const old_mean = welfold.mean;
-        welfold.mean = (1 - alpha) * welfold.mean + alpha * instability;
-        welfold.var_ = (1 - alpha) * (welfold.var_ + alpha * (instability - old_mean) ** 2);
-        const stddev = Math.sqrt(welfold.var_);
-        welfold.cil = welfold.mean - 1.96 * (stddev / Math.sqrt(1 / alpha));
-        welfold.ciu = welfold.mean + 1.96 * (stddev / Math.sqrt(1 / alpha));
-
-        const containsZero = welfold.cil <= 0 && welfold.ciu >= 0;
-
-        welfold.stabilized = welfold.var_ < 0.1;
-
-        if (stepper && !containsZero) {
-            stepper = stepper(false);
-                welfold = {
-                    mean: 0,
-                    var_: 1e6,
-                    cil: 0,
-                    ciu: 0,
-                    stabilized: false,
-                }
-        } else if (stepper && containsZero && welfold.stabilized) {
-            stepper = stepper(true);
+        return {
+            ping: ping,
+            start: start,
         };
+    }
 
-        if (welfold.stabilized) {
-            logInstability();
-            console.log("System has stabilized, stopping monitoring...");
-        };
+    const statManager = initStatManager();
 
-        if (callCount === 0) {
-            logInstability();
-        }
+    function ping() {
+        const val = globals.dynamicSolver.getTotalEnergy();
+        statManager.ping(val, (isStable) => {
+            if (cont) {
+                cont = cont(isStable);
+            }
+        });
     }
 
     function startStepper(){
-        if (stepper) {
+        if (cont) {
             console.log("Stepper already initialized.");
             return;
         }
+        $("#stepper").text("Running");
+        $("#stepperBottom").addClass("active");
         console.log("Initializing stepper...");
         mq = new MaskQueue();
-        nodeCombinations = globals.model.getNodes().map(getNodeCombinations);
-        stepper = stepFinderInit(0);
+        cont = stepFinderInit();
     }
 
     return {
-        solve: solve,
+        ping: ping,
         startStepper: startStepper,
         isActiveCrease: isActiveCrease,
         isPassiveCrease: isPassiveCrease,

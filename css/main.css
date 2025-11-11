@@ -192,11 +192,15 @@ p{
 }
 
 #stepperBottom{
+    background: #00ff00;
     position: absolute;
     bottom: 30px;
     right: 0;
     color: #34495e;
     font-weight: 900;
+}
+#stepperBottom.active {
+    background: #ff4400;
 }
 
 

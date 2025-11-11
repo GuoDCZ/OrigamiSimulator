@@ -171,7 +171,7 @@ function initModel(globals){
     function step(numSteps){
         getSolver().solve(numSteps);
         setGeoUpdates();
-        globals.stepper.solve();
+        globals.stepper.ping();
     }
 
     function setGeoUpdates(){
@@ -224,7 +224,80 @@ function initModel(globals){
         }
     }
 
+    // folding mode should be sequential
+    // Note: add a keyframe after idx, i.e., new keyframe will have same angles as keyframe idx
+    function addKeyframe(idx){
 
+        for (var i = 0; i < creases.length; i++) {
+            var crease = creases[i];
+            var seq = crease.targetThetaSeq;
+            seq.splice(idx, 0, seq[idx]);
+        }
+        
+        globals.pattern.setRawFoldAngles(function(foldAngles){
+            for (var j = 0; j < creases.length; j++){
+                var edgeIndex = creases[j].edge.index;
+                if (!foldAngles || !edgeIndex || edgeIndex < 0 || edgeIndex >= foldAngles.length) continue;
+                var seq = foldAngles[edgeIndex][1];
+                if (!seq) continue;
+                if (seq.length > 0 && idx <= seq.length){
+                    seq.splice(idx, 0, seq[idx]);
+                }
+            }
+        });
+        
+        globals.keyframeCount++;
+        if (globals.keyframeIdx > idx) globals.keyframeIdx++;
+
+        globals.shouldChangeCreasePercent = true;
+        globals.creaseMaterialHasChanged = true;
+        globals.controls.updateCreasePercent();
+    }
+
+    // folding mode should be sequential
+    function deleteKeyframe(idx){
+        // if (globals.keyframeCount <= 1){
+        //     globals.warn("Cannot delete the last remaining keyframe.");
+        //     return;
+        // }
+        if (idx === 0 || idx === globals.keyframeCount - 1){
+            globals.warn("Cannot delete the first or last keyframe.");
+            return;
+        }
+        if (idx < 0 || idx >= globals.keyframeCount){
+            globals.warn("Keyframe index out of range.");
+            return;
+        }
+
+        for (var i = 0; i < creases.length; i++){
+            var crease = creases[i];
+            var seq = crease.targetThetaSeq;
+            if (seq.length > 0 && idx < seq.length){
+                seq.splice(idx, 1);
+                if (seq.length === 0) seq.push(0);
+            }
+        }
+
+        globals.pattern.setRawFoldAngles(function(foldAngles){
+            for (var j = 0; j < creases.length; j++){
+                var edgeIndex = creases[j].edge.index;
+                if (!foldAngles || !edgeIndex || edgeIndex < 0 || edgeIndex >= foldAngles.length) continue;
+                var seq = foldAngles[edgeIndex][1];
+                if (!seq) continue;
+                if (seq.length > 0 && idx < seq.length){
+                    seq.splice(idx, 1);
+                    if (seq.length === 0) seq.push(0);
+                }
+            }
+        });
+
+        globals.keyframeCount--;
+        if (globals.keyframeIdx >= idx) globals.keyframeIdx--;
+        
+        globals.shouldChangeCreasePercent = true;
+        globals.creaseMaterialHasChanged = true;
+        globals.controls.updateCreasePercent();
+    }
 
     function sync(){
 
@@ -424,6 +497,9 @@ function initModel(globals){
         resume: resume,
         reset: reset,
         step: step,
+
+        addKeyframe: addKeyframe,
+        deleteKeyframe: deleteKeyframe,
 
         getNodes: getNodes,
         getEdges: getEdges,
