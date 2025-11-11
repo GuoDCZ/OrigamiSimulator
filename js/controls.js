@@ -492,7 +492,7 @@ function initControls(globals){
     });
     
     setLink("#keyframeIncrement", function(){
-        if (globals.keyframeIdx < globals.keyframeCount - 1){
+        if (globals.keyframeIdx < globals.keyframeCount - 2){
             globals.keyframeIdx++;
             globals.shouldChangeCreasePercent = true;
             updateCreasePercent();
@@ -500,7 +500,7 @@ function initControls(globals){
     });
 
     function addKeyframe(){
-        // ÐÞ¸Äcrease.targetThetaSeq
+        // ï¿½Þ¸ï¿½crease.targetThetaSeq
         var creases = globals.model.getCreases();
         var previousCount = globals.keyframeCount;
         var position = globals.keyframeIdx + globals.creasePercent;
@@ -518,10 +518,10 @@ function initControls(globals){
         }        
         var insertedAnglesDeg = insertedAnglesRad.map(function(angle){return angle * 180 / Math.PI;});
         
-        // ÐÞ¸ÄrawFold
+        // ï¿½Þ¸ï¿½rawFold
         globals.pattern.setRawFoldAngles(function(foldAngles){
             for (var j = 0; j < creases.length; j++){
-                var edgeIndex = creases[j].getEdgeIndex();
+                var edgeIndex = creases[j].edge.index;
                 if (!foldAngles || edgeIndex === undefined || edgeIndex < 0 || edgeIndex >= foldAngles.length) continue;
                 var seqDeg = foldAngles[edgeIndex][1];
                 // console.log("Crease ", j, "entry before insert: ", seqDeg);
@@ -557,7 +557,7 @@ function initControls(globals){
         }
         globals.pattern.setRawFoldAngles(function(foldAngles){
             for (var j = 0; j < creases.length; j++){
-                var edgeIndex = creases[j].getEdgeIndex();
+                var edgeIndex = creases[j].edge.index;
                 if (!foldAngles || edgeIndex === undefined || edgeIndex < 0 || edgeIndex >= foldAngles.length) continue;
                 var seqDeg = foldAngles[edgeIndex][1];
                 if (!seqDeg) continue;
@@ -593,9 +593,9 @@ function initControls(globals){
         updateCreasePercent();
     }, -100, 100);
 
-    var totalPercentSlider = setSlider("#totalPercent>div", (globals.creasePercent + globals.keyframeIdx) / globals.keyframeCount * 100, 0, 100, 0.1, function(val){
-        var totalPercent = val/100 * globals.keyframeCount;
-        globals.keyframeIdx = Math.floor(totalPercent);
+    var totalPercentSlider = setSlider("#totalPercent>div", (globals.creasePercent + globals.keyframeIdx) / (globals.keyframeCount - 1) * 100, 0, 100, 0.1, function(val){
+        var totalPercent = val/100 * (globals.keyframeCount - 1);
+        globals.keyframeIdx = Math.min(Math.floor(totalPercent), globals.keyframeCount - 2);
         globals.creasePercent = totalPercent - globals.keyframeIdx;
         globals.shouldChangeCreasePercent = true;
         updateCreasePercent();
@@ -622,9 +622,9 @@ function initControls(globals){
         $("#foldPercentSimple").html(val.toFixed(0));
 
         var totalPercent = globals.creasePercent + globals.keyframeIdx;
-        totalPercentSlider.slider('value', (totalPercent / globals.keyframeCount) * 100);
+        totalPercentSlider.slider('value', (totalPercent / (globals.keyframeCount - 1)) * 100);
         $("#totPercent").html((totalPercent * 100).toFixed(0));
-        $("#keyFrameSummary").html((globals.keyframeIdx + 1) + '/' + globals.keyframeCount);
+        $("#keyFrameSummary").html((globals.keyframeIdx + 1) + '/' + globals.keyframeCount - 1);
     }
     updateCreasePercent();
 
@@ -811,6 +811,9 @@ function initControls(globals){
     setLink("#reset", function(){
         if (!globals.simulationRunning) $("#reset").hide();
         globals.model.reset();
+    });
+    setLink("#stepperBottom", function(){
+        globals.stepper.startStepper();
     });
     setLink("#resetBottom", function(){
         globals.model.reset();

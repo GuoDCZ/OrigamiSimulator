@@ -31,17 +31,14 @@ function init3DUI(globals) {
         if (selectedObj){
             globals.pattern.setRawFoldAngles(
                 function(foldAngles) {
-                    var seq = foldAngles[selectedObj.edgeInd][1];
+                    var seq = foldAngles[selectedObj.edge.index][1];
                     if (globals.keyframeIdx < seq.length) {
                         seq[globals.keyframeIdx] = value * Math.PI / 180;
                     }
                 }
             );
-            var crease = globals.model.getCreases()
-            var seq = crease[selectedObj.getIndex()].targetThetaSeq;
-            if (globals.keyframeIdx < seq.length) {
-                seq[globals.keyframeIdx] = value * Math.PI / 180;
-            }
+            var creases = globals.model.getCreases()
+            creases[selectedObj.getIndex()].setTargetTheta(value * Math.PI / 180);
             globals.creaseMaterialHasChanged = true;
             $("#angleSimple").html(value.toFixed(0));
         }
@@ -50,7 +47,7 @@ function init3DUI(globals) {
     globals.controls.setSlider("#stiffnessBottom>div", 0, 0, 100, 1, function(value){
         if (selectedObj){
             var crease = globals.model.getCreases()
-            crease[selectedObj.getIndex()].stiffness = value / 100;
+            crease[selectedObj.getIndex()].setStiffness(value / 100);
             globals.creaseMaterialHasChanged = true;
             $("#stiffnessSimple").html(value.toFixed(0));
         }
@@ -85,15 +82,18 @@ function init3DUI(globals) {
     document.addEventListener('mousedown', function(e){
         if (cursorOnPanel(e)) return;
         mouseDown = true;
+        // if (highlightedObj && isNode(highlightedObj)) {
+        //     var combs = globals.stepper.getNodeCombinations(highlightedObj);
+        //     console.log("Node combinations for selected crease:", combs);
+        // }
         if (highlightedObj && !isNode(highlightedObj)) {
             if (selectedObj === highlightedObj) {
                 selectedObj = null;
             } else {
                 selectedObj = highlightedObj;
                 var crease = globals.model.getCreases()[selectedObj.getIndex()];
-                var seq = crease.getTargetThetaSeq();
-                var idx = Math.min(globals.keyframeIdx, seq.length - 1);
-                var angle = seq[idx] * 180 / Math.PI;
+                var angle = crease.getTargetTheta() * 180 / Math.PI;
+                $("#idSimple").html(crease.getIndex());
                 $("#angleSimple").html(angle.toFixed(0));
                 $("#targetAngleBottom>div").slider("value", angle);
                 var stiffness = crease.getStiffness() * 100;
@@ -261,7 +261,6 @@ function init3DUI(globals) {
                 edges.forEach(([a, b]) => {
                     const point = closestPointOnSegment(faceVertices[a][1], faceVertices[b][1]);
                     const dist = point.sub(position).lengthSq();
-                    console.log(dist, minDist);
                     if (dist < minDist) {
                         minDist = dist;
                         closestEdge = [faceVertices[a][0], faceVertices[b][0]];
