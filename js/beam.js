@@ -2,12 +2,17 @@
  * Created by ghassaei on 9/16/16.
  */
 
-// var beamMaterialHighlight = new THREE.LineBasicMaterial({color: 0xff0000, linewidth: 1});
+var beamMaterialHighlight = new THREE.LineBasicMaterial({color: 0xff0000, linewidth: 1});
+var highlightMaterial = new THREE.MeshBasicMaterial({color: 0xff0000, opacity:0.5, transparent:true});
 // var beamMaterial = new THREE.LineBasicMaterial({color: 0x000000, linewidth: 1});
 
-function Beam(nodes){
+var beamGeo = new THREE.CylinderGeometry(0.005,0.005,1,8,1,false);
+
+function Beam(nodes, assignment, index){
 
     this.type = "beam";
+    this.index = index;
+    this.assignment = assignment;
 
     nodes[0].addBeam(this);
     nodes[1].addBeam(this);
@@ -105,7 +110,36 @@ Beam.prototype.getOtherNode = function(node){
 //     if (shouldComputeLineDistance) this.object3D.geometry.computeLineDistances();//for dashed lines
 // };
 
+// seq folding
 
+Beam.prototype.getObject3D = function(){
+    return this.object3D;
+};
+
+Beam.prototype.setHighlight = function(){
+    if (!this.object3D){
+        this.object3D = new THREE.Mesh(beamGeo, beamMaterialHighlight);
+        this.object3D.visible = false;
+    }
+    this.object3D.material = highlightMaterial;
+};
+
+Beam.prototype.setTransparent = function(){
+    if (!this.object3D){
+        this.object3D = new THREE.Mesh(beamGeo, beamMaterialHighlight);
+        this.object3D.visible = false;
+    }
+    this.object3D.material = transparentMaterial;
+};
+
+Beam.prototype.isBoundary = function(){
+    return this.assignment == 'B';
+};
+
+Beam.prototype.getDirection = function(){
+    var pos = this.nodes.map(node => node.getPosition());
+    return pos[1].clone().sub(pos[0]).normalize();
+};
 
 
 //deallocate
@@ -116,6 +150,6 @@ Beam.prototype.destroy = function(){
         node.removeBeam(self);
     });
     this.vertices = null;
-    // this.object3D = null;
+    this.object3D = null;
     this.nodes = null;
 };

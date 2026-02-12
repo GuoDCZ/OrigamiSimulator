@@ -2,7 +2,7 @@
  * Created by amandaghassaei on 2/25/17.
  */
 
-function Crease(edge, face1Index, face2Index, targetTheta, type, node1, node2, index){
+function Crease(edge, face1Index, face2Index, targetTheta, targetThetaSeq, type, node1, node2, index){
     //type = 0 panel, 1 crease
 
     //face1 corresponds to node1, face2 to node2
@@ -13,6 +13,8 @@ function Crease(edge, face1Index, face2Index, targetTheta, type, node1, node2, i
     this.face1Index = face1Index;//todo this is useless
     this.face2Index = face2Index;
     this.targetTheta = targetTheta;
+    this.targetThetaSeq = targetThetaSeq;
+    this.stiffness = 1.0; // for debugging purposes
     this.type = type;
     this.node1 = node1;//node at vertex of face 1
     this.node2 = node2;//node at vertex of face 2
@@ -38,13 +40,40 @@ Crease.prototype.getNormal2Index = function(){
 };
 
 Crease.prototype.getTargetTheta = function(){
-    return this.targetTheta;
+    if (globals.foldingMode == "parallel"){
+        return this.targetTheta ?? 0;
+    } else { // globals.foldingMode == "sequential"
+        if (globals.keyframeIdx >= this.targetThetaSeq.length - 1){
+            return this.targetThetaSeq[this.targetThetaSeq.length - 1] ?? 0;
+        }
+        return this.targetThetaSeq[globals.keyframeIdx + 1] ?? 0;
+    }
+};
+
+Crease.prototype.setTargetTheta = function(theta){
+    if (globals.foldingMode == "parallel"){
+        this.targetTheta = theta;
+    } else { // globals.foldingMode == "sequential"
+        this.targetThetaSeq[globals.keyframeIdx + 1] = theta;
+    }
+};
+
+Crease.prototype.getTheta = function(){
+    if (globals.foldingMode == "parallel"){
+        return (this.targetTheta ?? 0) * globals.creasePercent;
+    } else { // globals.foldingMode == "sequential")
+        if (globals.keyframeIdx >= this.targetThetaSeq.length - 1){
+            return this.targetThetaSeq[this.targetThetaSeq.length - 1] ?? 0;
+        }
+        return ((this.targetThetaSeq[globals.keyframeIdx] ?? 0) * (1 - globals.creasePercent) +
+                (this.targetThetaSeq[globals.keyframeIdx + 1] ?? 0) * globals.creasePercent);
+    }
 };
 
 Crease.prototype.getK = function(){
     var length = this.getLength();
     if (this.type == 0) return globals.panelStiffness*length;
-    return globals.creaseStiffness*length;
+    return globals.creaseStiffness*length*this.stiffness;
 };
 
 Crease.prototype.getD = function(){
@@ -116,6 +145,20 @@ Crease.prototype.setVisibility = function(){
     this.edge.setVisibility(vis);
 };
 
+// seq folding
+
+Crease.prototype.getSeqLength = function(){
+    return this.targetThetaSeq.length;
+}
+
+Crease.prototype.getStiffness = function(){
+    return this.stiffness;
+};
+
+Crease.prototype.setStiffness = function(value){
+    this.stiffness = value;
+};
+
 Crease.prototype.destroy = function(){
     this.node1.removeCrease(this);
     this.node2.removeCrease(this);
@@ -128,6 +171,8 @@ Crease.prototype.destroy = function(){
     this.face1Index = null;
     this.face2Index = null;
     this.targetTheta = null;
+    this.targetThetaSeq = null;
+    this.stiffness = null;
     this.type = null;
     this.node1 = null;
     this.node2 = null;

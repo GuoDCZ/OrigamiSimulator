@@ -482,11 +482,54 @@ function initControls(globals){
         globals.shouldChangeCreasePercent = true;
         updateCreasePercent()
     });
+
+    setLink("#keyframeDecrement", function(){
+        if (globals.foldingMode == "sequential" &&
+            globals.keyframeIdx > 0){
+            globals.keyframeIdx--;
+        } else {
+            globals.creasePercent = 0;
+        }
+        globals.shouldChangeCreasePercent = true;
+        updateCreasePercent();
+    });
+    
+    setLink("#keyframeIncrement", function(){
+        if (globals.foldingMode == "sequential" &&
+            globals.keyframeIdx < globals.keyframeCount - 2){
+            globals.keyframeIdx++;
+        } else {
+            globals.creasePercent = 1;
+        }
+        globals.shouldChangeCreasePercent = true;
+        updateCreasePercent();
+    });
+
+    setLink("#keyframeAdd", function(){
+        globals.model.addKeyframe(globals.keyframeIdx);
+    });
+
+    setLink("#keyframeDelete", function(){
+        globals.model.deleteKeyframe(globals.keyframeIdx);
+    });
+
     setInput("#currentFoldPercent", globals.creasePercent*100, function(val){
         globals.creasePercent = val/100;
         globals.shouldChangeCreasePercent = true;
         updateCreasePercent();
     }, -100, 100);
+
+    var totalPercentSlider = setSlider("#totalPercent>div", 
+        (globals.creasePercent + globals.keyframeIdx) / (globals.keyframeCount - 1) * 100, 0, 100, 0.1, function(val){
+        var totalPercent = val/100 * (globals.keyframeCount - 1);
+        globals.keyframeIdx = Math.floor(totalPercent);
+        while (globals.keyframeIdx >= globals.keyframeCount - 1) {
+            globals.keyframeIdx--;
+        }
+        globals.creasePercent = totalPercent - globals.keyframeIdx;
+        globals.shouldChangeCreasePercent = true;
+        updateCreasePercent();
+    });
 
     setLink("#flatIndicator", function(){
         globals.creasePercent = 0;
@@ -507,6 +550,16 @@ function initControls(globals){
         $('#currentFoldPercent').val(val.toFixed(0));
         $('#creasePercent>input').val(val.toFixed(0));
         $("#foldPercentSimple").html(val.toFixed(0));
+
+        if (globals.foldingMode == "parallel") {
+            var effectiveIdx = Math.floor(globals.creasePercent);
+            $("#keyFrameSummary").text('' + (effectiveIdx + 1) + '/2');
+        } else { // sequential
+            var totalPercent = globals.creasePercent + globals.keyframeIdx;
+            totalPercentSlider.slider('value', (totalPercent / (globals.keyframeCount - 1)) * 100);
+            var effectiveIdx = Math.floor(totalPercent);
+            $("#keyFrameSummary").text('' + (effectiveIdx + 1) + '/' + globals.keyframeCount);
+        }
     }
     updateCreasePercent();
 
@@ -591,6 +644,32 @@ function initControls(globals){
     });
     setLink("#strainToggle", function(){
         setColorMode("axialStrain");
+    });
+
+    function updateFoldingMode(val){
+        if (val == "parallel") {
+            $("#parallelToggle>div").addClass("active");
+            $("#sequentialToggle>div").removeClass("active");
+            $("#totalPercent").hide();
+        }
+        else { // sequential
+            $("#parallelToggle>div").removeClass("active");
+            $("#sequentialToggle>div").addClass("active");
+            $("#totalPercent").show();
+            if (globals.foldingMode == "parallel") {
+                // adjust creasePercent to account for change in mode
+                globals.keyframeIdx = globals.keyframeCount - 2;
+            }
+        }
+        globals.foldingMode = val;
+        globals.shouldChangeCreasePercent = true;
+        updateCreasePercent();
+    }
+    setLink("#parallelToggle", function(){
+        updateFoldingMode("parallel");
+    });
+    setLink("#sequentialToggle", function(){
+        updateFoldingMode("sequential");
     });
 
     setHexInput("#color1", globals.color1, function(val){
@@ -678,6 +757,9 @@ function initControls(globals){
     setLink("#reset", function(){
         if (!globals.simulationRunning) $("#reset").hide();
         globals.model.reset();
+    });
+    setLink("#stepperBottom", function(){
+        globals.stepper.startStepper();
     });
     setLink("#resetBottom", function(){
         globals.model.reset();
@@ -940,7 +1022,9 @@ function initControls(globals){
     return {
         setDeltaT: setDeltaT,
         updateCreasePercent: updateCreasePercent,
-        setSliderInputVal: setSliderInputVal
+        updateFoldingMode: updateFoldingMode,
+        setSliderInputVal: setSliderInputVal,
+        setSlider: setSlider,
     }
 }
 

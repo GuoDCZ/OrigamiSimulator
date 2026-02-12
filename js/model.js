@@ -171,6 +171,7 @@ function initModel(globals){
     function step(numSteps){
         getSolver().solve(numSteps);
         setGeoUpdates();
+        globals.stepper.ping();
     }
 
     function setGeoUpdates(){
@@ -193,6 +194,10 @@ function initModel(globals){
 
 
     function buildModel(fold, creaseParams){
+        if (globals.keyframeCount !== creaseParams[0][5][1].length) {
+            globals.keyframeCount = creaseParams[0][5][1].length > 0 ? creaseParams[0][5][1].length : 2;
+            globals.controls.updateCreasePercent();
+        }
 
         if (fold.vertices_coords.length == 0) {
             globals.warn("No geometry found.");
@@ -219,7 +224,80 @@ function initModel(globals){
         }
     }
 
+    // folding mode should be sequential
+    // Note: add a keyframe after idx, i.e., new keyframe will have same angles as keyframe idx
+    function addKeyframe(idx){
 
+        for (var i = 0; i < creases.length; i++) {
+            var crease = creases[i];
+            var seq = crease.targetThetaSeq;
+            seq.splice(idx, 0, seq[idx]);
+        }
+        
+        globals.pattern.setRawFoldAngles(function(foldAngles){
+            for (var j = 0; j < creases.length; j++){
+                var edgeIndex = creases[j].edge.index;
+                if (!foldAngles || !edgeIndex || edgeIndex < 0 || edgeIndex >= foldAngles.length) continue;
+                var seq = foldAngles[edgeIndex][1];
+                if (!seq) continue;
+                if (seq.length > 0 && idx <= seq.length){
+                    seq.splice(idx, 0, seq[idx]);
+                }
+            }
+        });
+        
+        globals.keyframeCount++;
+        if (globals.keyframeIdx > idx) globals.keyframeIdx++;
+
+        globals.shouldChangeCreasePercent = true;
+        globals.creaseMaterialHasChanged = true;
+        globals.controls.updateCreasePercent();
+    }
+
+    // folding mode should be sequential
+    function deleteKeyframe(idx){
+        // if (globals.keyframeCount <= 1){
+        //     globals.warn("Cannot delete the last remaining keyframe.");
+        //     return;
+        // }
+        if (idx === 0 || idx === globals.keyframeCount - 1){
+            globals.warn("Cannot delete the first or last keyframe.");
+            return;
+        }
+        if (idx < 0 || idx >= globals.keyframeCount){
+            globals.warn("Keyframe index out of range.");
+            return;
+        }
+
+        for (var i = 0; i < creases.length; i++){
+            var crease = creases[i];
+            var seq = crease.targetThetaSeq;
+            if (seq.length > 0 && idx < seq.length){
+                seq.splice(idx, 1);
+                if (seq.length === 0) seq.push(0);
+            }
+        }
+
+        globals.pattern.setRawFoldAngles(function(foldAngles){
+            for (var j = 0; j < creases.length; j++){
+                var edgeIndex = creases[j].edge.index;
+                if (!foldAngles || !edgeIndex || edgeIndex < 0 || edgeIndex >= foldAngles.length) continue;
+                var seq = foldAngles[edgeIndex][1];
+                if (!seq) continue;
+                if (seq.length > 0 && idx < seq.length){
+                    seq.splice(idx, 1);
+                    if (seq.length === 0) seq.push(0);
+                }
+            }
+        });
+
+        globals.keyframeCount--;
+        if (globals.keyframeIdx >= idx) globals.keyframeIdx--;
+        
+        globals.shouldChangeCreasePercent = true;
+        globals.creaseMaterialHasChanged = true;
+        globals.controls.updateCreasePercent();
+    }
 
     function sync(){
 
@@ -250,29 +328,37 @@ function initModel(globals){
         }
 
         for (var i=0;i<_vertices.length;i++){
-            nodes.push(new Node(_vertices[i].clone(), nodes.length));
+            nodes.push(new Node(_vertices[i].clone(), i));
         }
         // _nodes[_faces[0][0]].setFixed(true);
         // _nodes[_faces[0][1]].setFixed(true);
         // _nodes[_faces[0][2]].setFixed(true);
 
         for (var i=0;i<_edges.length;i++) {
-            edges.push(new Beam([nodes[_edges[i][0]], nodes[_edges[i][1]]]));
+            edges.push(new Beam([nodes[_edges[i][0]], nodes[_edges[i][1]]], fold.edges_assignment[i], i));
         }
 
         for (var i=0;i<creaseParams.length;i++) {//allCreaseParams.length
-            var _creaseParams = creaseParams[i];//face1Ind, vert1Ind, face2Ind, ver2Ind, edgeInd, angle
-            var type = _creaseParams[5]!=0 ? 1:0;
-            //edge, face1Index, face2Index, targetTheta, type, node1, node2, index
+            var _creaseParams = creaseParams[i];//face1Ind, vert1Ind, face2Ind, ver2Ind, edgeInd, [angle, angleSeq]
+            var type = _creaseParams[5][0]!=0 ? 1:0;
+            var targetTheta = _creaseParams[5][0] * Math.PI / 180;
+            var targetThetaSeq = _creaseParams[5][1].map(function(x){return x * Math.PI / 180;});
+            if (targetThetaSeq.length == 0){
+                targetThetaSeq = [0, targetTheta];
+            }
+            
+            //edge, face1Index, face2Index, targetTheta, targetThetaSeq, type, node1, node2, index
             creases.push(new Crease(
                 edges[_creaseParams[4]],
                 _creaseParams[0],
                 _creaseParams[2],
-                _creaseParams[5] * Math.PI / 180,  // convert back to radians for the GPU math
+                targetTheta,
+                targetThetaSeq,
                 type,
                 nodes[_creaseParams[1]],
                 nodes[_creaseParams[3]],
-                creases.length));
+                i
+            ));
         }
 
         vertices = [];
@@ -397,6 +483,10 @@ function initModel(globals){
         return creases;
     }
 
+    function getMaxTargetThetaSeqLength(){
+        return Math.max(...creases.map(c => c.targetThetaSeq.length));
+    }
+
     function getDimensions(){
         geometry.computeBoundingBox();
         return geometry.boundingBox.max.clone().sub(geometry.boundingBox.min);
@@ -408,14 +498,19 @@ function initModel(globals){
         reset: reset,
         step: step,
 
+        addKeyframe: addKeyframe,
+        deleteKeyframe: deleteKeyframe,
+
         getNodes: getNodes,
         getEdges: getEdges,
         getFaces: getFaces,
         getCreases: getCreases,
+        getMaxTargetThetaSeqLength: getMaxTargetThetaSeqLength,
         getGeometry: getGeometry,//for save stl
         getPositionsArray: getPositionsArray,
         getColorsArray: getColorsArray,
         getMesh: getMesh,
+        getSolver: getSolver,
 
         buildModel: buildModel,//load new model
         sync: sync,//update geometry to new model

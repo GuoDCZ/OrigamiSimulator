@@ -10,6 +10,7 @@ function initDynamicSolver(globals){
     var edges;
     var faces;
     var creases;
+    var seqLength;
     var positions;
     var colors;
 
@@ -42,6 +43,7 @@ function initDynamicSolver(globals){
         edges = globals.model.getEdges();
         faces = globals.model.getFaces();
         creases = globals.model.getCreases();
+        seqLength = globals.model.getMaxTargetThetaSeqLength();
 
         positions = globals.model.getPositionsArray();
         colors = globals.model.getColorsArray();
@@ -76,7 +78,7 @@ function initDynamicSolver(globals){
         if (globals.shouldAnimateFoldPercent){
             globals.creasePercent = globals.videoAnimator.nextFoldAngle(0);
             globals.controls.updateCreasePercent();
-            setCreasePercent(globals.creasePercent);
+            updateCreasesMeta();
             globals.shouldChangeCreasePercent = true;
         }
 
@@ -101,7 +103,7 @@ function initDynamicSolver(globals){
             globals.materialHasChanged = false;
         }
         if (globals.shouldChangeCreasePercent) {
-            setCreasePercent(globals.creasePercent);
+            updateCreasesMeta();
             globals.shouldChangeCreasePercent = false;
         }
         // if (globals.shouldZeroDynamicVelocity){
@@ -225,6 +227,64 @@ function initDynamicSolver(globals){
         }
     }
 
+    function getTheta(){
+        let vectorLength = 4;
+        globals.gpuMath.setProgram("packToBytes");
+        globals.gpuMath.setUniformForProgram("packToBytes", "u_vectorLength", vectorLength, "1f");
+        globals.gpuMath.setUniformForProgram("packToBytes", "u_floatTextureDim", [textureDimCreases, textureDimCreases], "2f");
+        globals.gpuMath.setSize(textureDimCreases * vectorLength, textureDimCreases);
+        globals.gpuMath.step("packToBytes", ["u_theta"], "thetaOutputBytes");
+
+        if (globals.gpuMath.readyToRead()) {
+            let numPixels = creases.length * vectorLength;
+            let width = textureDimCreases * vectorLength;
+            let height = Math.ceil(numPixels / width);
+            let pixels = new Uint8Array(height * width * 4);
+
+            globals.gpuMath.readPixels(0, 0, width, height, pixels);
+            let parsedPixels = new Float32Array(pixels.buffer);
+
+            let thetas = [];
+            for (let i = 0; i < creases.length; i++) {
+                thetas.push(parsedPixels[i * vectorLength]);
+            }
+            return thetas;
+        } else {
+            console.log("shouldn't be here");
+            return [];
+        }
+    }
+
+    function getCreaseEnergy(){
+        let thetas = getTheta();
+        let energy = 0;
+        for (let i = 0; i < creases.length; i++){
+            let dTheta = thetas[i] - (globals.stepper.isActiveCrease(i) ? 0 : creases[i].getTheta());
+            let k = (globals.stepper.isPassiveCrease(i) ? 0 : creases[i].getK());
+            if (!theta[i] && theta[i] !== 0) console.log("bad crease theta");
+            if (!creases[i].getTheta() && creases[i].getTheta() !== 0) console.log("bad crease target theta");
+            if (!k && k !== 0) console.log("bad crease k");
+            if (!dTheta && dTheta !== 0) console.log("bad crease dTheta");
+            energy += 0.5 * k * dTheta * dTheta;
+        }
+        return energy;
+    }
+
+    function getAxialEnergy(){
+        let energy = 0;
+        for (let i = 0; i < edges.length; i++){
+            let edge = edges[i];
+            let dLength = edge.getLength() - edge.getOriginalLength();
+            let k = edge.getK();
+            energy += 0.5 * k * dLength * dLength;
+        }
+        return energy;
+    }
+
+    function getTotalEnergy(){
+        return getCreaseEnergy() + getAxialEnergy(); // + getFaceEnergy();
+    }
+
     function setSolveParams(){
         var dt = calcDt();
         $("#deltaT").html(dt);
@@ -316,7 +376,7 @@ function initDynamicSolver(globals){
         gpuMath.setUniformForProgram("velocityCalc", "u_textureDimCreases", [textureDimCreases, textureDimCreases], "2f");
         gpuMath.setUniformForProgram("velocityCalc", "u_textureDimNodeCreases", [textureDimNodeCreases, textureDimNodeCreases], "2f");
         gpuMath.setUniformForProgram("velocityCalc", "u_textureDimNodeFaces", [textureDimNodeFaces, textureDimNodeFaces], "2f");
-        gpuMath.setUniformForProgram("velocityCalc", "u_creasePercent", globals.creasePercent, "1f");
+        gpuMath.setUniformForProgram("velocityCalc", "u_magneticForceStrength", globals.magneticForceStrength, "1f");
         gpuMath.setUniformForProgram("velocityCalc", "u_axialStiffness", globals.axialStiffness, "1f");
         gpuMath.setUniformForProgram("velocityCalc", "u_faceStiffness", globals.faceStiffness, "1f");
         gpuMath.setUniformForProgram("velocityCalc", "u_calcFaceStrain", globals.calcFaceStrain, "1f");
@@ -344,7 +404,7 @@ function initDynamicSolver(globals){
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_textureDimCreases", [textureDimCreases, textureDimCreases], "2f");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_textureDimNodeCreases", [textureDimNodeCreases, textureDimNodeCreases], "2f");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_textureDimNodeFaces", [textureDimNodeFaces, textureDimNodeFaces], "2f");
-        gpuMath.setUniformForProgram("positionCalcVerlet", "u_creasePercent", globals.creasePercent, "1f");
+        gpuMath.setUniformForProgram("positionCalcVerlet", "u_magneticForceStrength", globals.magneticForceStrength, "1f");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_axialStiffness", globals.axialStiffness, "1f");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_faceStiffness", globals.faceStiffness, "1f");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_calcFaceStrain", globals.calcFaceStrain, "1f");
@@ -478,14 +538,15 @@ function initDynamicSolver(globals){
         globals.gpuMath.initTextureFromData("u_creaseVectors", textureDimCreases, textureDimCreases, "FLOAT", creaseVectors, true);
     }
 
-    function updateCreasesMeta(initing){
+    function updateCreasesMeta(){
         for (var i=0;i<creases.length;i++){
             var crease = creases[i];
             creaseMeta[i*4] = crease.getK();
+            creaseMeta[i*4+1] = globals.stepper.isPassiveCrease(crease.index) ? -1 : 1;
             // creaseMeta[i*4+1] = crease.getD();
-            if (initing) creaseMeta[i*4+2] = crease.getTargetTheta();
+            creaseMeta[i*4+2] = globals.stepper.isActiveCrease(crease.index) ? 0 : crease.getTheta();
         }
-        globals.gpuMath.initTextureFromData("u_creaseMeta", textureDimCreases, textureDimCreases, "FLOAT", creaseMeta, true);
+        globals.gpuMath.initTextureFromData("u_creaseMeta", textureDimCreases, textureDimCreases, "FLOAT", creaseMeta, true); // creaseMeta is sent to the GPU, where it can be accessed by the shader.
     }
 
     function updateLastPosition(){
@@ -498,14 +559,6 @@ function initDynamicSolver(globals){
         globals.gpuMath.initTextureFromData("u_lastPosition", textureDim, textureDim, "FLOAT", lastPosition, true);
         globals.gpuMath.initFrameBufferForTexture("u_lastPosition", true);
 
-    }
-
-    function setCreasePercent(percent){
-        if (!programsInited) return;
-        globals.gpuMath.setProgram("velocityCalc");
-        globals.gpuMath.setUniformForProgram("velocityCalc", "u_creasePercent", percent, "1f");
-        globals.gpuMath.setProgram("positionCalcVerlet");
-        globals.gpuMath.setUniformForProgram("positionCalcVerlet", "u_creasePercent", percent, "1f");
     }
 
     function initTypedArrays(){
@@ -652,16 +705,87 @@ function initDynamicSolver(globals){
         updateMaterials(true);
         updateFixed();
         updateExternalForces();
-        updateCreasesMeta(true);
+        updateCreasesMeta();
         updateCreaseVectors();
-        setCreasePercent(globals.creasePercent);
+    }
+    
+    function saveState() {
+        if (globals && globals.gpuMath) {
+            // Save GPU textures
+            globals.gpuMath.saveTextureState("u_position");
+            globals.gpuMath.saveTextureState("u_velocity");
+            globals.gpuMath.saveTextureState("u_lastPosition");
+            globals.gpuMath.saveTextureState("u_theta");
+            globals.gpuMath.saveTextureState("u_lastTheta");
+            
+            // Save keyframe index and crease percent
+            globals.savedSnapshot = {
+                keyframeIdx: globals.keyframeIdx,
+                creasePercent: globals.creasePercent,
+                foldingMode: globals.foldingMode
+            };
+            
+            console.log("[GPU] State saved!");
+            console.log("  - Keyframe Index:", globals.keyframeIdx);
+            console.log("  - Crease Percent:", globals.creasePercent);
+            console.log("  - Folding Mode:", globals.foldingMode);
+        }
     }
 
+    function loadState() {
+        if (globals && globals.gpuMath && globals.savedSnapshot) {
+            // Restore keyframe index and crease percent
+            globals.keyframeIdx = globals.savedSnapshot.keyframeIdx;
+            globals.creasePercent = globals.savedSnapshot.creasePercent;
+            globals.foldingMode = globals.savedSnapshot.foldingMode;
+            
+            // Update UI to reflect restored values
+            globals.setCreasePercent(globals.creasePercent);
+            globals.controls.updateCreasePercent();
+            
+            // Update the keyframe display
+            var totalKeyframes = globals.keyframeCount;
+            $("#keyFrameSummary").text((globals.keyframeIdx + 1) + "/" + totalKeyframes);
+            
+            // Update crease materials with the restored target angles
+            updateCreasesMeta();
+            globals.creaseMaterialHasChanged = true;
+            
+            // Load GPU textures
+            globals.gpuMath.loadTextureState("u_position");
+            globals.gpuMath.loadTextureState("u_velocity");
+            globals.gpuMath.loadTextureState("u_lastPosition");
+            globals.gpuMath.loadTextureState("u_theta");
+            globals.gpuMath.loadTextureState("u_lastTheta");
+            
+            // Render to update display
+            render();
+            
+            console.log("[GPU] State loaded!");
+            console.log("  - Keyframe Index:", globals.keyframeIdx);
+            console.log("  - Crease Percent:", globals.creasePercent);
+            console.log("  - Folding Mode:", globals.foldingMode);
+        } else if (!globals.savedSnapshot) {
+            console.warn("[GPU] No saved snapshot found. Press Ctrl+C first to save state.");
+        }
+    }
+
+    // === GPU State Save/Load with Keyframe Support ===
+    // document.addEventListener("keydown", function(e) {
+    //     if ((e.ctrlKey || e.metaKey) && e.code === "KeyC") saveState();
+    //     if ((e.ctrlKey || e.metaKey) && e.code === "KeyV") loadState();
+    //     e.preventDefault(); // Prevent default browser load dialog
+    // });
+    
     return {
         syncNodesAndEdges: syncNodesAndEdges,
         updateFixed: updateFixed,
         solve: solve,
         render: render,
-        reset: reset
+        reset: reset,
+        getTheta: getTheta,
+        getTotalEnergy: getTotalEnergy,
+        saveState: saveState,
+        loadState: loadState
     }
 }

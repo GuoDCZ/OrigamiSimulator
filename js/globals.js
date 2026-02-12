@@ -13,8 +13,8 @@ function initGlobals(){
         //view
         colorMode: "color",
         calcFaceStrain: false,
-        color1: "ec008b",
-        color2: "dddddd",
+        color1: "FFBDED",
+        color2: "FDFFC7",
         edgesVisible: true,
         mtnsVisible: true,
         valleysVisible: true,
@@ -103,7 +103,18 @@ function initGlobals(){
         capturerFrames: 0,
         shouldScaleCanvas: false,
         isGif: false,
-        shouldAnimateFoldPercent: false
+        shouldAnimateFoldPercent: false,
+
+        // step finder settings
+        // stepFinder: null,
+        keyframeCount: 6,
+        keyframeIdx: 0,
+        foldingMode: "parallel", //or sequential
+        magneticForceStrength: 0.2,
+        
+        // Snapshot storage for Ctrl+C / Ctrl+V
+        savedSnapshot: null,
+        mask: null
     };
 
     function setCreasePercent(percent){
